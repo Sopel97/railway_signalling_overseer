@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.1.1
+  Bugs:
+    - Fixed infinite recursion due to some cycles in the railway network
+    - More graceful handling of railways with two-way segments, at least no crashes
+    - Fix crashes on open/close config caused by incorrect gui bookkeeping.
+---------------------------------------------------------------------------------------------------
 Version: 1.1.0
   Features:
     - Initial release
