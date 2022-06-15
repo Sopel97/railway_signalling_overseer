@@ -89,10 +89,10 @@ do
         local old_data = global.railway_signalling_overseer_data[player.index]
 
         global.railway_signalling_overseer_data[player.index] = {
-            frame_flow = nil,
-            config_window = nil,
-            update_period_label = nil,
-            train_length_label = nil,
+            frame_flow = old_data.frame_flow or nil,
+            config_window = old_data.config_window or nil,
+            update_period_label = old_data.update_period_label or nil,
+            train_length_label = old_data.train_length_label or nil,
             train_length = old_data.train_length or 6,
             update_period = old_data.update_period or 60,
             enabled = old_data.enabled or true,
@@ -159,69 +159,77 @@ do
     local function open_config_window(player)
         local data = global.railway_signalling_overseer_data[player.index]
 
-        local frame = player.gui.left.add{
-            type = "frame",
-            caption = "Railway Signalling Overseer",
-            direction = "vertical",
-            name = "railway_signalling_overseer_config_window",
-        }
+        if player.gui.left["railway_signalling_overseer_config_window"] == nil then
+            local frame = player.gui.left.add{
+                type = "frame",
+                caption = "Railway Signalling Overseer",
+                direction = "vertical",
+                name = "railway_signalling_overseer_config_window",
+            }
 
-        local flow = frame.add{type = "flow", direction = "vertical"}
+            local flow = frame.add{type = "flow", direction = "vertical"}
 
-        flow.add{
-            type = "checkbox",
-            caption = "Enable realtime updates",
-            name = "railway_signalling_overseer_enable_checkbox",
-            state = data.enabled
-        }
+            flow.add{
+                type = "checkbox",
+                caption = "Enable realtime updates",
+                name = "railway_signalling_overseer_enable_checkbox",
+                state = data.enabled
+            }
 
-        flow.add{
-            type = "checkbox",
-            caption = "Only show problems",
-            name = "railway_signalling_overseer_only_show_problems_checkbox",
-            state = data.only_show_problems,
-            enabled = data.enabled
-        }
+            flow.add{
+                type = "checkbox",
+                caption = "Only show problems",
+                name = "railway_signalling_overseer_only_show_problems_checkbox",
+                state = data.only_show_problems,
+                enabled = data.enabled
+            }
 
-        flow.add{
-            type = "line"
-        }
+            flow.add{
+                type = "line"
+            }
 
-        data.update_period_label = flow.add{
-            type = "label",
-            caption = "Update period (ticks): " .. tostring(data.update_period),
-        }
-        flow.add{
-            type = "slider",
-            name = "railway_signalling_overseer_update_period_slider",
-            value = update_period_to_slider_value(data.update_period),
-            value_step = 1,
-            minimum_value = 1,
-            maximum_value = #UPDATE_PERIOD_ALLOWED_VALUES,
-            discrete_slider = true,
-            discrete_values = true
-        }
+            data.update_period_label = flow.add{
+                type = "label",
+                caption = "Update period (ticks): " .. tostring(data.update_period),
+                name = "railway_signalling_overseer_update_period_label"
+            }
+            flow.add{
+                type = "slider",
+                name = "railway_signalling_overseer_update_period_slider",
+                value = update_period_to_slider_value(data.update_period),
+                value_step = 1,
+                minimum_value = 1,
+                maximum_value = #UPDATE_PERIOD_ALLOWED_VALUES,
+                discrete_slider = true,
+                discrete_values = true
+            }
 
-        flow.add{
-            type = "line"
-        }
+            flow.add{
+                type = "line"
+            }
 
-        data.train_length_label = flow.add{
-            type = "label",
-            caption = "Train length (wagons): " .. tostring(data.train_length),
-        }
-        flow.add{
-            type = "slider",
-            name = "railway_signalling_overseer_train_length_slider",
-            value = data.train_length,
-            value_step = 1,
-            minimum_value = 1,
-            maximum_value = 20,
-            discrete_slider = true,
-            discrete_values = true
-        }
+            data.train_length_label = flow.add{
+                type = "label",
+                caption = "Train length (wagons): " .. tostring(data.train_length),
+                name = "railway_signalling_overseer_train_length_label"
+            }
+            flow.add{
+                type = "slider",
+                name = "railway_signalling_overseer_train_length_slider",
+                value = data.train_length,
+                value_step = 1,
+                minimum_value = 1,
+                maximum_value = 20,
+                discrete_slider = true,
+                discrete_values = true
+            }
 
-        data.config_window = frame
+            data.config_window = frame
+        else
+            data.config_window = player.gui.left["railway_signalling_overseer_config_window"]
+            data.update_period_label = data.config_window["railway_signalling_overseer_update_period_label"]
+            data.train_length_label = data.config_window["railway_signalling_overseer_train_length_label"]
+        end
     end
 
     local function close_config_window(player)
