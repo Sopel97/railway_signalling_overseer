@@ -507,37 +507,41 @@ do
                 local prev, next = get_rail_neighbours_ids(rail)
 
                 local traffic_direction = infer_rail_traffic_direction_from_signals(segment_signals)
-                if traffic_direction == rail_traffic_direction.backward then
-                    prev, next = next, prev
+                if traffic_direction == rail_traffic_direction.indeterminate or traffic_direction == rail_traffic_direction.universal then
+                    -- We cannot use these as a base, becuase they don't carry any information about the traffic direction.
+                else
+                    if traffic_direction == rail_traffic_direction.backward then
+                        prev, next = next, prev
+                    end
+
+                    local segment_length = rail.get_rail_segment_length()
+
+                    -- 0 = block where a train waits on a chain
+                    -- 1 = next block, block that the train cannot stop in
+                    -- 2 = block that the train waits for to be empty
+                    -- We set it to 0 unless we know for sure it's higher
+                    local distance_from_chain = 0
+                    if begin_signal == rail_signal_type.chain then
+                        distance_from_chain = 1
+                    end
+
+                    rail_graph[id] = {
+                        entity = rail,
+                        segment_signals = segment_signals,
+                        begin_signal = begin_signal,
+                        end_signal = end_signal,
+                        rail_signals = rail_signals,
+                        segment_length = segment_length,
+                        next = next,
+                        prev = prev,
+                        traffic_direction = traffic_direction,
+                        is_inside_area = true,
+                        distance_from_chain = distance_from_chain
+                    }
+
+                    -- Add to queue to grow from later.
+                    table.insert(queue, id)
                 end
-
-                local segment_length = rail.get_rail_segment_length()
-
-                -- 0 = block where a train waits on a chain
-                -- 1 = next block, block that the train cannot stop in
-                -- 2 = block that the train waits for to be empty
-                -- We set it to 0 unless we know for sure it's higher
-                local distance_from_chain = 0
-                if begin_signal == rail_signal_type.chain then
-                    distance_from_chain = 1
-                end
-
-                rail_graph[id] = {
-                    entity = rail,
-                    segment_signals = segment_signals,
-                    begin_signal = begin_signal,
-                    end_signal = end_signal,
-                    rail_signals = rail_signals,
-                    segment_length = segment_length,
-                    next = next,
-                    prev = prev,
-                    traffic_direction = traffic_direction,
-                    is_inside_area = true,
-                    distance_from_chain = distance_from_chain
-                }
-
-                -- Add to queue to grow from later.
-                table.insert(queue, id)
             end
         end
 
@@ -732,7 +736,7 @@ do
         local visited_rails = {}
         local next_segment_index = 1
         for id, node in pairs(rail_graph) do
-            if not visited_rails[id] then
+            if not visited_rails[id] and (node.traffic_direction == rail_traffic_direction.forward or node.traffic_direction == rail_traffic_direction.backward) then
                 local frontmost_id = nil
                 local backmost_id = nil
 
@@ -754,10 +758,17 @@ do
                     local frontmost = rail_graph[frontmost_id]
                     local backmost = rail_graph[backmost_id]
 
-                    frontmost.segment_index = next_segment_index
-                    backmost.segment_index = next_segment_index
+                    -- TODO: In some networks with two-way segments backmost/frontmost can be nil.
+                    --       It needs to be investigated why this exactly happens.
+                    --       Not indexing these segments can have some impact on the correctness/completeness
+                    --       of the results, but since two-way segments are not officially
+                    --       supported this is an acceptable solution.
+                    if frontmost ~= nil and backmost ~= nil then
+                        frontmost.segment_index = next_segment_index
+                        backmost.segment_index = next_segment_index
 
-                    next_segment_index = next_segment_index + 1
+                        next_segment_index = next_segment_index + 1
+                    end
                 end
             end
         end
