@@ -1161,17 +1161,21 @@ do
         -- and leaves the temporary computation results in the nodes itself
         local node = block[start_segment_id]
         if node.min_distance_to_sink ~= nil then
+            -- We use -1 as a special value designating "on the stack"
+            if node.min_distance_to_sink < 0 then
+                return 0
+            end
             return node.min_distance_to_sink
         end
 
-        node.min_distance_to_sink = nil
+        node.min_distance_to_sink = -1
         for _, next_id in ipairs(node.next) do
             local dist = get_block_size_from_segment(block, next_id) + node.segment_length
-            if node.min_distance_to_sink == nil or dist < node.min_distance_to_sink then
+            if node.min_distance_to_sink == -1 or dist < node.min_distance_to_sink then
                 node.min_distance_to_sink = dist
             end
         end
-        if node.min_distance_to_sink == nil then
+        if node.min_distance_to_sink == -1 then
             node.min_distance_to_sink = node.segment_length
         end
 
