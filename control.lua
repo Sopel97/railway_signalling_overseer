@@ -1218,10 +1218,74 @@ do
         return block
     end
 
+    local function expand_segment_to_block_forward(graph, segment_id)
+        local visited = {segment_id}
+        local queue = {segment_id}
+        local block = {}
+
+        -- First expand nodes by flood fill
+        while #queue > 0 do
+            local node_id = table.remove(queue, #queue)
+            local node = graph[node_id]
+            block[node_id] = shallowcopy(node)
+            if node.end_signal == rail_signal_type.none then
+                -- We handle the case where we can go forward in the block
+                for _, next_id in ipairs(node.next) do
+                    if not visited[next_id] then
+                        visited[next_id] = true
+                        table.insert(queue, next_id)
+                    end
+                end
+            else
+                -- We handle the case where the signal is on the merge of multiple tracks.
+                -- In this case the block is a union of segments that do not have a connection.
+                -- The only thing conencting them is the rail AFTER the signal.
+                -- So we just add all predecessors of a successors
+                -- (they should be all the same so no need to check all).
+                if #node.next > 0 then
+                    for _, next_prev_id in ipairs(graph[node.next[1]].prev) do
+                        if not visited[next_prev_id] then
+                            visited[next_prev_id] = true
+                            table.insert(queue, next_prev_id)
+                        end
+                    end
+                end
+            end
+        end
+
+        -- and then prune edges that are no longer relevant
+        for id, node in pairs(block) do
+            local new_next = {}
+            local new_prev = {}
+            for _, next_id in ipairs(node.next) do
+                if block[next_id] ~= nil then
+                    table.insert(new_next, next_id)
+                end
+            end
+            for _, prev_id in ipairs(node.prev) do
+                if block[prev_id] ~= nil then
+                    table.insert(new_prev, prev_id)
+                end
+            end
+            node.next = new_next
+            node.prev = new_prev
+        end
+
+        return block
+    end
+
     local function expand_segments_to_blocks(graph, segment_ids)
         local blocks = {}
         for _, s_id in ipairs(segment_ids) do
             table.insert(blocks, expand_segment_to_block(graph, s_id))
+        end
+        return blocks
+    end
+
+    local function expand_segments_to_blocks_forward(graph, segment_ids)
+        local blocks = {}
+        for _, s_id in ipairs(segment_ids) do
+            table.insert(blocks, expand_segment_to_block_forward(graph, s_id))
         end
         return blocks
     end
@@ -1272,13 +1336,22 @@ do
 
     local function find_blocks_after_chain_signals(graph, id)
         local segments_after_chains = find_segments_after_chain_signals(graph, id)
-        return expand_segments_to_blocks(graph, segments_after_chains), segments_after_chains
+        return expand_segments_to_blocks_forward(graph, segments_after_chains), segments_after_chains
     end
 
     -- Since blocks flood fill there can never be two different blocks
     -- sharing a rail. So we just need to check if any of the blocks
     -- contains at least one of the rails from other block.
     local function are_blocks_equal(a, b)
+        for id, node in pairs(a) do
+            if b[id] ~= nil then
+                return true
+            end
+        end
+        return false
+    end
+
+    local function block_a_contains_any_from_b(a, b)
         for id, node in pairs(a) do
             if b[id] ~= nil then
                 return true
@@ -1322,7 +1395,9 @@ do
 
         for id, node in pairs(graph) do
             if node_ends_with_chain_signal(graph, node) then
+                -- This one needs to be expanded fully
                 local block = expand_segment_to_block(graph, id)
+                -- These blocks will only be expanded forward
                 local blocks_after_chains, segments_after_chains = find_blocks_after_chain_signals(graph, id)
 
                 node.min_block_length_after_chain_signals = nil
@@ -1332,7 +1407,8 @@ do
                 end
 
                 for i, block_after_chain in ipairs(blocks_after_chains) do
-                    if are_blocks_equal(block, block_after_chain) then
+                    -- We can just check for containment here, it's enough.
+                    if block_a_contains_any_from_b(block, block_after_chain) then
                         -- before chain is the same block as after chain,
                         -- so the train will never go through there...
                         -- in this case we don't produce any other information
