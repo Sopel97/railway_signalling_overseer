@@ -494,7 +494,9 @@ do
     local function create_railway_segment_graph_dynamic(start_rails, area)
         local rail_graph = {}
 
-        local queue = {}
+        -- Poor man's priority queue
+        local queues = {[-1]={}, [0]={}, [1]={}, [2]={}}
+        local queues_ids = {0, 1, -1, 2}
 
         -- First we find rails that we can infer direction from
         for _, rail in ipairs(start_rails) do
@@ -519,13 +521,15 @@ do
 
                     local segment_length = rail.get_rail_segment_length()
 
-                    -- 0 = block where a train waits on a chain
-                    -- 1 = next block, block that the train cannot stop in
-                    -- 2 = block that the train waits for to be empty
-                    -- We set it to 0 unless we know for sure it's higher
-                    local distance_from_chain = 0
-                    if begin_signal == rail_signal_type.chain then
-                        distance_from_chain = 1
+                    local forward_distance_from_chain = nil
+                    if end_signal == rail_signal_type.chain then
+                        forward_distance_from_chain = 0
+                    elseif begin_signal == rail_signal_type.chain then
+                        forward_distance_from_chain = 1
+                    elseif begin_signal == rail_signal_type.normal then
+                        forward_distance_from_chain = 2 -- at least 2, but we may potentially need that block so we want to explore it fully
+                    elseif end_signal == rail_signal_type.normal then
+                        forward_distance_from_chain = 1
                     end
 
                     rail_graph[id] = {
@@ -539,21 +543,33 @@ do
                         prev = prev,
                         traffic_direction = traffic_direction,
                         is_inside_area = true,
-                        distance_from_chain = distance_from_chain,
+                        forward_distance_from_chain = forward_distance_from_chain,
                         growth_direction = graph_node_growth_direction.both
                     }
 
                     -- Add to queue to grow from later.
-                    table.insert(queue, id)
+                    table.insert(queues[forward_distance_from_chain], id)
                 end
             end
         end
 
         -- then we grow from them until we reach enough segments
-        -- we grow until we hit distance_from_chain>=2 and we're outside of the area
+        -- we grow until we hit forward_distance_from_chain>=2 and we're outside of the area
         -- that means we will catch all blocks that train on chains wait for
-        while #queue > 0 do
-            local id = table.remove(queue, #queue)
+        while true do
+            local id = nil
+            for _, queue_id in ipairs(queues_ids) do
+                local queue = queues[queue_id]
+                if #queue > 0 then
+                    id = table.remove(queue, #queue)
+                    break
+                end
+            end
+
+            if id == nil then
+                break
+            end
+
             local node = rail_graph[id]
 
             -- get neighbour rail entities
@@ -562,7 +578,7 @@ do
                 prev, next = next, prev
             end
 
-            if node.growth_direction == graph_node_growth_direction.forward or node.growth_direction == graph_node_growth_direction.both then
+            if (node.growth_direction == graph_node_growth_direction.forward or node.growth_direction == graph_node_growth_direction.both) then
                 -- try to expand each neighbour
                 for _, rail in ipairs(next) do
                     local rail_id = make_entity_id(rail)
@@ -586,20 +602,19 @@ do
                         --   1. the previous rail had an end_signal
                         --   2. this rail has a begin_signal
                         -- both cannot be true at the same time, because the game prevents such placement
-                        local distance_from_chain = node.distance_from_chain
+                        local forward_distance_from_chain = node.forward_distance_from_chain
                         if end_signal == rail_signal_type.chain then
-                            distance_from_chain = 0
+                            forward_distance_from_chain = 0
                         elseif begin_signal == rail_signal_type.chain then
-                            distance_from_chain = 1
+                            forward_distance_from_chain = 1
                         elseif begin_signal ~= rail_signal_type.none then
-                            distance_from_chain = node.distance_from_chain + 1
+                            forward_distance_from_chain = node.forward_distance_from_chain + 1
                         end
 
                         local is_inside_area = box_contains_point(area, rail.position)
 
                         -- see if we actually want to expand there
-                        -- TODO: investigate why we need <=3 instead of <=2
-                        if distance_from_chain <= 3 or is_inside_area then
+                        if forward_distance_from_chain <= 2 then
                             local segment_length = rail.get_rail_segment_length()
                             local prev, next = get_rail_neighbours_ids(rail)
                             local traffic_direction = nil
@@ -614,7 +629,7 @@ do
                             end
 
                             local growth_direction = graph_node_growth_direction.both
-                            if not inside_area then
+                            if not is_inside_area then
                                 -- If we're outside the range then it's enough if we just go forward from this node,
                                 -- because we only need to find reachable blocks.
                                 -- This limits the exploration a lot.
@@ -632,22 +647,17 @@ do
                                 prev = prev,
                                 traffic_direction = traffic_direction,
                                 is_inside_area = is_inside_area,
-                                distance_from_chain = distance_from_chain,
+                                forward_distance_from_chain = forward_distance_from_chain,
                                 growth_direction = growth_direction
                             }
 
                             rail_graph[rail_id] = new_node
-                            table.insert(queue, rail_id)
+                            table.insert(queues[forward_distance_from_chain], rail_id)
                         end
                     else
                         -- If it's already there then just make sure everything is consitent
                         -- regarding signals on ends. This needs to be checked because
                         -- the rail can be reached from two sides.
-                        -- distance_from_chain is more problematic because it WILL
-                        -- not always match the real value, as we do not propagate it,
-                        -- but it would have been to costly to propagate fully, as other
-                        -- nodes may already depend on the current value here.
-                        -- That's why we're conservative at the first assignment of it.
                         if new_node.begin_signal == rail_signal_type.none then
                             new_node.begin_signal = node.end_signal
                         end
@@ -658,7 +668,7 @@ do
                 end
             end
 
-            if node.growth_direction == graph_node_growth_direction.backward or node.growth_direction == graph_node_growth_direction.both then
+            if (node.growth_direction == graph_node_growth_direction.backward or node.growth_direction == graph_node_growth_direction.both) then
                 -- now we have to do the same but in the other direction
                 for _, rail in ipairs(prev) do
                     local rail_id = make_entity_id(rail)
@@ -676,18 +686,19 @@ do
                         end
 
                         -- When going backward we don't really care about resetting
-                        -- distance_from_chain on blocks with chain signals because we're
+                        -- forward_distance_from_chain on blocks with chain signals because we're
                         -- only interested in the immediately preceding block the train would wait on.
-                        local distance_from_chain = node.distance_from_chain
-                        if end_signal ~= rail_signal_type.none then
-                            distance_from_chain = node.distance_from_chain - 1
+                        local forward_distance_from_chain = node.forward_distance_from_chain
+                        if begin_signal == rail_signal_type.chain then
+                            forward_distance_from_chain = 2
+                        elseif end_signal ~= rail_signal_type.none then
+                            forward_distance_from_chain = node.forward_distance_from_chain - 1
                         end
 
                         local is_inside_area = box_contains_point(area, rail.position)
 
                         -- see if we actually want to expand there
-                        -- we don't need to expand the block with -2 fully, we just need to know there's a chain
-                        if distance_from_chain >= -2 or is_inside_area then
+                        if forward_distance_from_chain >= -1 then
                             local segment_length = rail.get_rail_segment_length()
                             local prev, next = get_rail_neighbours_ids(rail)
                             local traffic_direction = nil
@@ -700,7 +711,7 @@ do
                             end
 
                             local growth_direction = graph_node_growth_direction.both
-                            if not inside_area then
+                            if not is_inside_area then
                                 growth_direction = graph_node_growth_direction.backward
                             end
 
@@ -715,12 +726,12 @@ do
                                 prev = prev,
                                 traffic_direction = traffic_direction,
                                 is_inside_area = is_inside_area,
-                                distance_from_chain = distance_from_chain,
+                                forward_distance_from_chain = forward_distance_from_chain,
                                 growth_direction = growth_direction
                             }
 
                             rail_graph[rail_id] = new_node
-                            table.insert(queue, rail_id)
+                            table.insert(queues[forward_distance_from_chain], rail_id)
                         end
                     else
                         if new_node.end_signal == rail_signal_type.none then
