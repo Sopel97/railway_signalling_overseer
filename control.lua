@@ -263,6 +263,12 @@ do
                 caption = "Run single update",
                 name = "railway_signalling_overseer_run_single_update_button"
             }
+            local b = flow.add{
+                type = "button",
+                caption = "Analize WHOLE MAP",
+                name = "railway_signalling_overseer_run_single_update_whole_map_button"
+            }
+            b.style.font_color = {1, 0, 0}
             flow.add{
                 type = "button",
                 caption = "Clear overlays",
@@ -1486,16 +1492,24 @@ do
     end
 
 
-    local function update(player, type, ttl)
+    local function update(player, type, range, ttl)
         local data = get_config(player)
         local train_length = data.train_length
 
         if type == partial_update_type.create_graph or type == partial_update_type.all then
             -- This needs to be formed in one tick sadly, can't smear it.
             -- Otherwise we could end up with an inconsistent railway graph due to changes between ticks.
-            local area = get_area_around_the_player(player, data.initial_rail_scan_range)
-            local rails = get_rails_in_area(player.surface, area)
-            local segment_graph = create_railway_segment_graph_dynamic(rails, area)
+            local rails = nil
+            local segment_graph = nil
+            if range ~= nil then
+                local area = get_area_around_the_player(player, range)
+                rails = get_rails_in_area(player.surface, area)
+                segment_graph = create_railway_segment_graph_dynamic(rails, area)
+            else
+                -- Never query surface with a very large area, because there are issues in the engine.
+                rails = get_rails_in_area(player.surface, nil)
+                segment_graph = create_railway_segment_graph_dynamic(rails, get_area_around_the_player(player, 9999999))
+            end
             data.partial_update_data.segment_graph = segment_graph
         end
 
@@ -1555,8 +1569,9 @@ do
         local tick = event.tick
         for _, player in pairs(game.players) do
             local type = get_partial_update_type(player, tick)
+            local data = get_config(player)
             if type ~= partial_update_type.none then
-                update(player, type, get_config(player).update_period + 1)
+                update(player, type, data.initial_rail_scan_range, data.update_period + 1)
             end
         end
     end)
@@ -1572,10 +1587,14 @@ do
             toggle_config_window(player)
         elseif name == "railway_signalling_overseer_run_single_update_button" then
             local player = game.players[event.player_index]
-            update(player, partial_update_type.all, nil)
+            local range = data.initial_rail_scan_range
+            update(player, partial_update_type.all, range, nil)
         elseif name == "railway_signalling_overseer_clear_overlays_button" then
             local player = game.players[event.player_index]
             clear_renderings(player)
+        elseif name == "railway_signalling_overseer_run_single_update_whole_map_button" then
+            local player = game.players[event.player_index]
+            update(player, partial_update_type.all, nil, nil)
         end
     end)
 
