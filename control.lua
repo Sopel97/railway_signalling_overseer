@@ -42,6 +42,11 @@ do
         both = 2
     }
 
+    local segment_overlay_position = {
+        back = 0,
+        front = 1
+    }
+
     local ALL_RAIL_DIRECTIONS = {
         defines.rail_connection_direction.left,
         defines.rail_connection_direction.straight,
@@ -1464,29 +1469,57 @@ do
         return interesting_nodes
     end
 
-    local function make_node_text(node, train_length)
-        local color = COLOR_GOOD
-        local text = nil
+    local function get_segment_overlays(node, train_length)
+        local overlays = {}
 
         if node.min_block_length_after_chain_signals then
-            text = "... -> " .. string.format("%.2f", tiles_to_train_length(node.min_block_length_after_chain_signals))
+            local text = "... -> " .. string.format("%.2f", tiles_to_train_length(node.min_block_length_after_chain_signals))
+            local color = COLOR_GOOD
             if tiles_to_train_length(node.min_block_length_after_chain_signals) < train_length then
                 color = COLOR_BAD
             end
+            table.insert(overlays, {
+                text = text,
+                color = color,
+                position = segment_overlay_position.front
+            })
         elseif node.chain_selfwait then
-            text = "... -> same block!"
-            color = COLOR_BAD
-        elseif node.block_after_chain_too_small then
-            text = string.format("%.2f", tiles_to_train_length(node.block_length))
-            color = COLOR_BAD
+            local text = "... -> same block!"
+            local color = COLOR_BAD
+            table.insert(overlays, {
+                text = text,
+                color = color,
+                position = segment_overlay_position.front
+            })
         elseif node.no_destination then
-            text = "no destination!"
-            color = COLOR_BAD
+            local text = "no destination!"
+            local color = COLOR_BAD
+            table.insert(overlays, {
+                text = text,
+                color = color,
+                position = segment_overlay_position.front
+            })
+        end
+        if node.block_after_chain_too_small then
+            local text = string.format("%.2f", tiles_to_train_length(node.block_length))
+            local color = COLOR_BAD
+            table.insert(overlays, {
+                text = text,
+                color = color,
+                position = segment_overlay_position.back,
+                alert_message = "Block too small"
+            })
         elseif node.block_length then
-            text = string.format("%.2f", tiles_to_train_length(node.block_length))
+            local text = string.format("%.2f", tiles_to_train_length(node.block_length))
+            local color = COLOR_GOOD
+            table.insert(overlays, {
+                text = text,
+                color = color,
+                position = segment_overlay_position.back
+            })
         end
 
-        return text, color
+        return overlays
     end
 
     local function clear_renderings(player)
@@ -1527,41 +1560,44 @@ do
 
                 local interesting_nodes = label_segments(segment_graph, train_length)
                 for _, node in ipairs(interesting_nodes) do
-                    local text, color = make_node_text(node, train_length)
-                    if color == COLOR_BAD or not data.only_show_problems then
-                        local target = nil
-                        local orientation = 0
-                        if node.min_block_length_after_chain_signals or node.chain_selfwait or node.no_destination then
-                            target = node.frontmost_rail_pos
-                            orientation = node.frontmost_rail_orient
-                        else
-                            target = node.backmost_rail_pos
-                            orientation = node.backmost_rail_orient
-                        end
+                    local overlays = get_segment_overlays(node, train_length)
+                    for _, overlay in ipairs(overlays) do
+                        local color = overlay.color
+                        if color == COLOR_BAD or not data.only_show_problems then
+                            local target = nil
+                            local orientation = nil
+                            if overlay.position == segment_overlay_position.front then
+                                target = node.frontmost_rail_pos
+                                orientation = node.frontmost_rail_orient
+                            else
+                                target = node.backmost_rail_pos
+                                orientation = node.backmost_rail_orient
+                            end
 
-                        local rendering_id = rendering.draw_text{
-                            color = color,
-                            text = text,
-                            target = target,
-                            scale = 1.5,
-                            orientation = orientation,
-                            alignment = "center",
-                            vertical_alignment = "middle",
-                            surface = player.surface,
-                            time_to_live = ttl
-                        }
+                            local rendering_id = rendering.draw_text{
+                                color = color,
+                                text = overlay.text,
+                                target = target,
+                                scale = 1.5,
+                                orientation = orientation,
+                                alignment = "center",
+                                vertical_alignment = "middle",
+                                surface = player.surface,
+                                time_to_live = ttl
+                            }
 
-                        if data.show_as_alerts and node.block_after_chain_too_small then
-                            player.add_custom_alert(
-                                node.backmost_entity,
-                                {type="item", name="rail-chain-signal"},
-                                "Block too small",
-                                true
-                            )
-                        end
+                            if data.show_as_alerts and overlay.alert_message ~= nil then
+                                player.add_custom_alert(
+                                    node.backmost_entity,
+                                    {type="item", name="rail-chain-signal"},
+                                    overlay.alert_message,
+                                    true
+                                )
+                            end
 
-                        if ttl == nil then
-                            table.insert(data.renderings, rendering_id)
+                            if ttl == nil then
+                                table.insert(data.renderings, rendering_id)
+                            end
                         end
                     end
                 end
