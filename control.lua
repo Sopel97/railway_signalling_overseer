@@ -1370,11 +1370,18 @@ do
         -- one additional tile because trains stop a tile short of a signal
         local train_lengths = 0
         tiles = tiles - 1 -- trains stop 1 tile short
-        while tiles >= 7 do
-            train_lengths = train_lengths + 1
-            tiles = tiles - 7
+        while true do
+            if tiles >= 6 then
+                train_lengths = train_lengths + 1
+                tiles = tiles - 6
+            end
+            if tiles >= 7 then
+                tiles = tiles - 1
+            else
+                break
+            end
         end
-        train_lengths = train_lengths + tiles / 6
+        train_lengths = train_lengths + tiles / 7
         return train_lengths
     end
 
