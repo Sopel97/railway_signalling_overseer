@@ -1594,6 +1594,7 @@ do
             toggle_config_window(player)
         elseif name == "railway_signalling_overseer_run_single_update_button" then
             local player = game.players[event.player_index]
+            local data = global.railway_signalling_overseer_data[player.index]
             local range = data.initial_rail_scan_range
             update(player, partial_update_type.all, range, nil)
         elseif name == "railway_signalling_overseer_clear_overlays_button" then
