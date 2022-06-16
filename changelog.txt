@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version 1.1.6
+  Features:
+    - Allow multiple message overlays per segment.
+  Fixes:
+    - Fixed train calculation length.
+    - Fixed crash on single update button click.
+---------------------------------------------------------------------------------------------------
 Version 1.1.5
   Features:
     - Added a button to force full map analysis.
