@@ -104,6 +104,7 @@ do
             only_show_problems = old_data.only_show_problems or false,
             renderings = old_data.renderings or {},
             initial_rail_scan_range = old_data.initial_rail_scan_range or DEFAULT_RAIL_SCAN_RANGE,
+            show_as_alerts = old_data.show_as_alerts or false,
             partial_update_data = {
                 segment_graph = nil
             }
@@ -208,8 +209,14 @@ do
                 type = "checkbox",
                 caption = "Only show problems",
                 name = "railway_signalling_overseer_only_show_problems_checkbox",
-                state = data.only_show_problems,
-                enabled = data.enabled
+                state = data.only_show_problems
+            }
+
+            flow.add{
+                type = "checkbox",
+                caption = "Show problems as alerts",
+                name = "railway_signalling_overseer_show_as_alerts_checkbox",
+                state = data.show_as_alerts
             }
 
             flow.add{
@@ -877,6 +884,8 @@ do
                     backmost_rail_pos = backmost_rail_pos,
                     frontmost_rail_orient = frontmost_rail_orient,
                     backmost_rail_orient = backmost_rail_orient,
+                    frontmost_entity = frontmost.entity,
+                    backmost_entity = backmost.entity,
                     next = next_segments_indices,
                     prev = prev_segments_indices,
                     segment_length = frontmost.segment_length
@@ -1113,6 +1122,21 @@ do
         return copy
     end
 
+    function shallowcopy(orig)
+        local orig_type = type(orig)
+        local copy
+        if orig_type == 'table' then
+            copy = {}
+            for orig_key, orig_value in next, orig, nil do
+                copy[orig_key] = orig_value
+            end
+            setmetatable(copy, getmetatable(orig))
+        else -- number, string, boolean, etc
+            copy = orig
+        end
+        return copy
+    end
+
     -- NOTE: This function only considers connected rails. It does NOT handle rail intersections.
     local function expand_segment_to_block(graph, segment_id)
         local visited = {segment_id}
@@ -1123,7 +1147,7 @@ do
         while #queue > 0 do
             local node_id = table.remove(queue, #queue)
             local node = graph[node_id]
-            block[node_id] = deepcopy(node)
+            block[node_id] = shallowcopy(node)
             if node.end_signal == rail_signal_type.none then
                 -- We handle the case where we can go forward in the block
                 for _, next_id in ipairs(node.next) do
@@ -1422,6 +1446,15 @@ do
                             time_to_live = ttl
                         }
 
+                        if data.show_as_alerts and node.block_after_chain_too_small then
+                            player.add_custom_alert(
+                                node.backmost_entity,
+                                {type="item", name="rail-chain-signal"},
+                                "Block too small",
+                                true
+                            )
+                        end
+
                         if ttl == nil then
                             table.insert(data.renderings, rendering_id)
                         end
@@ -1472,6 +1505,10 @@ do
             local player = game.players[event.player_index]
             local data = global.railway_signalling_overseer_data[player.index]
             data.only_show_problems = event.element.state
+        elseif name == "railway_signalling_overseer_show_as_alerts_checkbox" then
+            local player = game.players[event.player_index]
+            local data = global.railway_signalling_overseer_data[player.index]
+            data.show_as_alerts = event.element.state
         end
     end)
 
