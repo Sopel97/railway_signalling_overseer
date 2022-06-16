@@ -503,7 +503,7 @@ do
 
         -- Poor man's priority queue
         local queues = {[-1]={}, [0]={}, [1]={}, [2]={}}
-        local queues_ids = {0, 1, -1, 2}
+        local queues_ids = {0, 1, 2, -1}
 
         -- First we find rails that we can infer direction from
         for _, rail in ipairs(start_rails) do
@@ -551,6 +551,7 @@ do
                         traffic_direction = traffic_direction,
                         is_inside_area = true,
                         forward_distance_from_chain = forward_distance_from_chain,
+                        is_chain_uncertain = false,
                         growth_direction = graph_node_growth_direction.both
                     }
 
@@ -655,6 +656,7 @@ do
                                 traffic_direction = traffic_direction,
                                 is_inside_area = is_inside_area,
                                 forward_distance_from_chain = forward_distance_from_chain,
+                                is_chain_uncertain = false,
                                 growth_direction = growth_direction
                             }
 
@@ -734,6 +736,9 @@ do
                                 traffic_direction = traffic_direction,
                                 is_inside_area = is_inside_area,
                                 forward_distance_from_chain = forward_distance_from_chain,
+                                -- When we expand backwards some chains won't get full coverage
+                                -- We want to mark those as uncertain so that they are not rendered later
+                                is_chain_uncertain = not is_inside_area,
                                 growth_direction = growth_direction
                             }
 
@@ -884,8 +889,7 @@ do
                     backmost_rail_pos = backmost_rail_pos,
                     frontmost_rail_orient = frontmost_rail_orient,
                     backmost_rail_orient = backmost_rail_orient,
-                    frontmost_entity = frontmost.entity,
-                    backmost_entity = backmost.entity,
+                    is_chain_uncertain = frontmost.is_chain_uncertain,
                     next = next_segments_indices,
                     prev = prev_segments_indices,
                     segment_length = frontmost.segment_length
@@ -1319,7 +1323,7 @@ do
                 local blocks_after_chains, segments_after_chains = find_blocks_after_chain_signals(graph, id)
 
                 node.min_block_length_after_chain_signals = nil
-                if not node.is_interesting then
+                if not node.is_interesting and not node.is_chain_uncertain then
                     node.is_interesting = true
                     table.insert(interesting_nodes, node)
                 end
@@ -1401,6 +1405,7 @@ do
         end
         data.renderings = {}
     end
+
 
     local function update(player, type, ttl)
         local data = get_config(player)
