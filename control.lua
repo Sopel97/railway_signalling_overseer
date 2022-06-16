@@ -33,6 +33,12 @@ do
         all = 3
     }
 
+    local graph_node_growth_direction = {
+        forward = 0,
+        backward = 1,
+        both = 2
+    }
+
     local ALL_RAIL_DIRECTIONS = {
         defines.rail_connection_direction.left,
         defines.rail_connection_direction.straight,
@@ -510,7 +516,8 @@ do
                         prev = prev,
                         traffic_direction = traffic_direction,
                         is_inside_area = true,
-                        distance_from_chain = distance_from_chain
+                        distance_from_chain = distance_from_chain,
+                        growth_direction = graph_node_growth_direction.both
                     }
 
                     -- Add to queue to grow from later.
@@ -532,150 +539,173 @@ do
                 prev, next = next, prev
             end
 
-            -- try to expand each neighbour
-            for _, rail in ipairs(next) do
-                local rail_id = make_entity_id(rail)
-                local new_node = rail_graph[rail_id]
-                -- if already present in the graph then we don't care
-                if new_node == nil then
-                    -- get signals, we're not interested in segment signals here
-                    -- we just want to know if the rail constitutes a change in block
-                    local segment_signals, rail_signals = get_rail_signals(rail)
-                    local begin_signal, end_signal = get_begin_end_signals(rail_signals)
+            if node.growth_direction == graph_node_growth_direction.forward or node.growth_direction == graph_node_growth_direction.both then
+                -- try to expand each neighbour
+                for _, rail in ipairs(next) do
+                    local rail_id = make_entity_id(rail)
+                    local new_node = rail_graph[rail_id]
+                    -- if already present in the graph then we don't care
+                    if new_node == nil then
+                        -- get signals, we're not interested in segment signals here
+                        -- we just want to know if the rail constitutes a change in block
+                        local segment_signals, rail_signals = get_rail_signals(rail)
+                        local begin_signal, end_signal = get_begin_end_signals(rail_signals)
 
-                    -- make sure we have consistent signal information between neighbours
-                    if begin_signal == rail_signal_type.none then
-                        begin_signal = node.end_signal
-                    end
-
-                    -- we handle a transition from one block to another
-                    -- this can only happen if either
-                    --   1. the previous rail had an end_signal
-                    --   2. this rail has a begin_signal
-                    -- both cannot be true at the same time, because the game prevents such placement
-                    local distance_from_chain = node.distance_from_chain
-                    if end_signal == rail_signal_type.chain then
-                        distance_from_chain = 0
-                    elseif begin_signal == rail_signal_type.chain then
-                        distance_from_chain = 1
-                    elseif begin_signal ~= rail_signal_type.none then
-                        distance_from_chain = node.distance_from_chain + 1
-                    end
-
-                    local is_inside_area = box_contains_point(area, rail.position)
-
-                    -- see if we actually want to expand there
-                    -- TODO: investigate why we need <=3 instead of <=2
-                    if distance_from_chain <= 3 or is_inside_area then
-                        local segment_length = rail.get_rail_segment_length()
-                        local prev, next = get_rail_neighbours_ids(rail)
-                        local traffic_direction = nil
-
-                        -- find the direction of traffic for this particular rail
-                        -- and correct the order of neighbours if necessary
-                        if is_neighbour_connected_by_front(node.entity, rail) then
-                            traffic_direction = rail_traffic_direction.backward
-                            next, prev = prev, next
-                        else
-                            traffic_direction = rail_traffic_direction.forward
+                        -- make sure we have consistent signal information between neighbours
+                        if begin_signal == rail_signal_type.none then
+                            begin_signal = node.end_signal
+                        elseif node.end_signal == rail_signal_type.none then
+                            node.end_signal = begin_signal
                         end
 
-                        new_node = {
-                            entity = rail,
-                            segment_signals = segment_signals,
-                            begin_signal = begin_signal,
-                            end_signal = end_signal,
-                            rail_signals = rail_signals,
-                            segment_length = segment_length,
-                            next = next,
-                            prev = prev,
-                            traffic_direction = traffic_direction,
-                            is_inside_area = is_inside_area,
-                            distance_from_chain = distance_from_chain
-                        }
+                        -- we handle a transition from one block to another
+                        -- this can only happen if either
+                        --   1. the previous rail had an end_signal
+                        --   2. this rail has a begin_signal
+                        -- both cannot be true at the same time, because the game prevents such placement
+                        local distance_from_chain = node.distance_from_chain
+                        if end_signal == rail_signal_type.chain then
+                            distance_from_chain = 0
+                        elseif begin_signal == rail_signal_type.chain then
+                            distance_from_chain = 1
+                        elseif begin_signal ~= rail_signal_type.none then
+                            distance_from_chain = node.distance_from_chain + 1
+                        end
 
-                        rail_graph[rail_id] = new_node
-                        table.insert(queue, rail_id)
-                    end
-                else
-                    -- If it's already there then just make sure everything is consitent
-                    -- regarding signals on ends. This needs to be checked because
-                    -- the rail can be reached from two sides.
-                    -- distance_from_chain is more problematic because it WILL
-                    -- not always match the real value, as we do not propagate it,
-                    -- but it would have been to costly to propagate fully, as other
-                    -- nodes may already depend on the current value here.
-                    -- That's why we're conservative at the first assignment of it.
-                    if new_node.begin_signal == rail_signal_type.none then
-                        new_node.begin_signal = node.end_signal
-                    end
-                    if node.end_signal == rail_signal_type.none then
-                        node.end_signal = new_node.begin_signal
+                        local is_inside_area = box_contains_point(area, rail.position)
+
+                        -- see if we actually want to expand there
+                        -- TODO: investigate why we need <=3 instead of <=2
+                        if distance_from_chain <= 3 or is_inside_area then
+                            local segment_length = rail.get_rail_segment_length()
+                            local prev, next = get_rail_neighbours_ids(rail)
+                            local traffic_direction = nil
+
+                            -- find the direction of traffic for this particular rail
+                            -- and correct the order of neighbours if necessary
+                            if is_neighbour_connected_by_front(node.entity, rail) then
+                                traffic_direction = rail_traffic_direction.backward
+                                next, prev = prev, next
+                            else
+                                traffic_direction = rail_traffic_direction.forward
+                            end
+
+                            local growth_direction = graph_node_growth_direction.both
+                            if not inside_area then
+                                -- If we're outside the range then it's enough if we just go forward from this node,
+                                -- because we only need to find reachable blocks.
+                                -- This limits the exploration a lot.
+                                growth_direction = graph_node_growth_direction.forward
+                            end
+
+                            new_node = {
+                                entity = rail,
+                                segment_signals = segment_signals,
+                                begin_signal = begin_signal,
+                                end_signal = end_signal,
+                                rail_signals = rail_signals,
+                                segment_length = segment_length,
+                                next = next,
+                                prev = prev,
+                                traffic_direction = traffic_direction,
+                                is_inside_area = is_inside_area,
+                                distance_from_chain = distance_from_chain,
+                                growth_direction = growth_direction
+                            }
+
+                            rail_graph[rail_id] = new_node
+                            table.insert(queue, rail_id)
+                        end
+                    else
+                        -- If it's already there then just make sure everything is consitent
+                        -- regarding signals on ends. This needs to be checked because
+                        -- the rail can be reached from two sides.
+                        -- distance_from_chain is more problematic because it WILL
+                        -- not always match the real value, as we do not propagate it,
+                        -- but it would have been to costly to propagate fully, as other
+                        -- nodes may already depend on the current value here.
+                        -- That's why we're conservative at the first assignment of it.
+                        if new_node.begin_signal == rail_signal_type.none then
+                            new_node.begin_signal = node.end_signal
+                        end
+                        if node.end_signal == rail_signal_type.none then
+                            node.end_signal = new_node.begin_signal
+                        end
                     end
                 end
             end
 
-            -- now we have to do the same but in the other direction
-            for _, rail in ipairs(prev) do
-                local rail_id = make_entity_id(rail)
-                local new_node = rail_graph[rail_id]
-                -- if present then we don't care
-                if new_node == nil then
-                    -- get signals, we're not interested in segment signals
-                    local segment_signals, rail_signals = get_rail_signals(rail)
-                    local begin_signal, end_signal = get_begin_end_signals(rail_signals)
+            if node.growth_direction == graph_node_growth_direction.backward or node.growth_direction == graph_node_growth_direction.both then
+                -- now we have to do the same but in the other direction
+                for _, rail in ipairs(prev) do
+                    local rail_id = make_entity_id(rail)
+                    local new_node = rail_graph[rail_id]
+                    -- if present then we don't care
+                    if new_node == nil then
+                        -- get signals, we're not interested in segment signals
+                        local segment_signals, rail_signals = get_rail_signals(rail)
+                        local begin_signal, end_signal = get_begin_end_signals(rail_signals)
 
-                    if end_signal == rail_signal_type.none then
-                        end_signal = node.begin_signal
-                    end
-
-                    -- When going backward we don't really care about resetting
-                    -- distance_from_chain on blocks with chain signals because we're
-                    -- only interested in the immediately preceding block the train would wait on.
-                    local distance_from_chain = node.distance_from_chain
-                    if end_signal ~= rail_signal_type.none then
-                        distance_from_chain = node.distance_from_chain - 1
-                    end
-
-                    local is_inside_area = box_contains_point(area, rail.position)
-
-                    -- see if we actually want to expand there
-                    -- we don't need to expand the block with -2 fully, we just need to know there's a chain
-                    if distance_from_chain >= -2 or is_inside_area then
-                        local segment_length = rail.get_rail_segment_length()
-                        local prev, next = get_rail_neighbours_ids(rail)
-                        local traffic_direction = nil
-
-                        if is_neighbour_connected_by_front(node.entity, rail) then
-                            traffic_direction = rail_traffic_direction.forward
-                        else
-                            traffic_direction = rail_traffic_direction.backward
-                            next, prev = prev, next
+                        if end_signal == rail_signal_type.none then
+                            end_signal = node.begin_signal
+                        elseif node.begin_signal == rail_signal_type.none then
+                            node.begin_signal = end_signal
                         end
 
-                        new_node = {
-                            entity = rail,
-                            segment_signals = segment_signals,
-                            begin_signal = begin_signal,
-                            end_signal = end_signal,
-                            rail_signals = rail_signals,
-                            segment_length = segment_length,
-                            next = next,
-                            prev = prev,
-                            traffic_direction = traffic_direction,
-                            is_inside_area = is_inside_area,
-                            distance_from_chain = distance_from_chain
-                        }
+                        -- When going backward we don't really care about resetting
+                        -- distance_from_chain on blocks with chain signals because we're
+                        -- only interested in the immediately preceding block the train would wait on.
+                        local distance_from_chain = node.distance_from_chain
+                        if end_signal ~= rail_signal_type.none then
+                            distance_from_chain = node.distance_from_chain - 1
+                        end
 
-                        rail_graph[rail_id] = new_node
-                        table.insert(queue, rail_id)
-                    end
-                else
-                    if new_node.end_signal == rail_signal_type.none then
-                        new_node.end_signal = node.begin_signal
-                    end
-                    if node.begin_signal == rail_signal_type.none then
-                        node.begin_signal = new_node.end_signal
+                        local is_inside_area = box_contains_point(area, rail.position)
+
+                        -- see if we actually want to expand there
+                        -- we don't need to expand the block with -2 fully, we just need to know there's a chain
+                        if distance_from_chain >= -2 or is_inside_area then
+                            local segment_length = rail.get_rail_segment_length()
+                            local prev, next = get_rail_neighbours_ids(rail)
+                            local traffic_direction = nil
+
+                            if is_neighbour_connected_by_front(node.entity, rail) then
+                                traffic_direction = rail_traffic_direction.forward
+                            else
+                                traffic_direction = rail_traffic_direction.backward
+                                next, prev = prev, next
+                            end
+
+                            local growth_direction = graph_node_growth_direction.both
+                            if not inside_area then
+                                growth_direction = graph_node_growth_direction.backward
+                            end
+
+                            new_node = {
+                                entity = rail,
+                                segment_signals = segment_signals,
+                                begin_signal = begin_signal,
+                                end_signal = end_signal,
+                                rail_signals = rail_signals,
+                                segment_length = segment_length,
+                                next = next,
+                                prev = prev,
+                                traffic_direction = traffic_direction,
+                                is_inside_area = is_inside_area,
+                                distance_from_chain = distance_from_chain,
+                                growth_direction = growth_direction
+                            }
+
+                            rail_graph[rail_id] = new_node
+                            table.insert(queue, rail_id)
+                        end
+                    else
+                        if new_node.end_signal == rail_signal_type.none then
+                            new_node.end_signal = node.begin_signal
+                        end
+                        if node.begin_signal == rail_signal_type.none then
+                            node.begin_signal = new_node.end_signal
+                        end
                     end
                 end
             end
