@@ -89,10 +89,6 @@ do
         local old_data = global.railway_signalling_overseer_data[player.index]
 
         global.railway_signalling_overseer_data[player.index] = {
-            frame_flow = old_data.frame_flow or nil,
-            config_window = old_data.config_window or nil,
-            update_period_label = old_data.update_period_label or nil,
-            train_length_label = old_data.train_length_label or nil,
             train_length = old_data.train_length or 6,
             update_period = old_data.update_period or 60,
             enabled = old_data.enabled or true,
@@ -119,8 +115,6 @@ do
             style = mod_gui.button_style,
             mouse_button_filter = {"left"}
         }
-
-        global.railway_signalling_overseer_data[player.index].frame_flow = frame_flow
     end
 
     local function get_config(player)
@@ -156,7 +150,30 @@ do
         return nil
     end
 
-    local function open_config_window(player)
+    local function get_gui_element_by_name_recursive(element, name)
+        if element.name == name then
+            return element
+        end
+
+        for _, child in ipairs(element.children) do
+            local found = get_gui_element_by_name_recursive(child, name)
+            if found ~= nil then
+                return found
+            end
+        end
+
+        return nil
+    end
+
+    local function get_config_gui_element(player, name)
+        local root = player.gui.left["railway_signalling_overseer_config_window"]
+        if root == nil then
+            return nil
+        end
+        return get_gui_element_by_name_recursive(root, name)
+    end
+
+    local function toggle_config_window(player)
         local data = global.railway_signalling_overseer_data[player.index]
 
         if player.gui.left["railway_signalling_overseer_config_window"] == nil then
@@ -188,7 +205,7 @@ do
                 type = "line"
             }
 
-            data.update_period_label = flow.add{
+            flow.add{
                 type = "label",
                 caption = "Update period (ticks): " .. tostring(data.update_period),
                 name = "railway_signalling_overseer_update_period_label"
@@ -208,7 +225,7 @@ do
                 type = "line"
             }
 
-            data.train_length_label = flow.add{
+            flow.add{
                 type = "label",
                 caption = "Train length (wagons): " .. tostring(data.train_length),
                 name = "railway_signalling_overseer_train_length_label"
@@ -226,29 +243,22 @@ do
 
             data.config_window = frame
         else
-            data.config_window = player.gui.left["railway_signalling_overseer_config_window"]
-            data.update_period_label = data.config_window["railway_signalling_overseer_update_period_label"]
-            data.train_length_label = data.config_window["railway_signalling_overseer_train_length_label"]
+            player.gui.left["railway_signalling_overseer_config_window"].destroy()
         end
     end
 
     local function close_config_window(player)
-        local data = global.railway_signalling_overseer_data[player.index]
-        data.config_window.destroy()
-        data.config_window = nil
-        data.update_period_label = nil
-        data.train_length_label = nil
+        local wnd = player.gui.left["railway_signalling_overseer_config_window"]
+        if wnd ~= nil then
+            wnd.destroy()
+        end
     end
 
     script.on_event(defines.events.on_gui_click, function(event)
         local name = event.element.name
         if name == "railway_signalling_overseer_toggle_config_window_button" then
             local player = game.players[event.player_index]
-            if global.railway_signalling_overseer_data[player.index].config_window == nil then
-                open_config_window(player)
-            else
-                close_config_window(player)
-            end
+            toggle_config_window(player)
         end
     end)
 
@@ -272,13 +282,17 @@ do
             local data = global.railway_signalling_overseer_data[player.index]
             local new_value = UPDATE_PERIOD_ALLOWED_VALUES[event.element.slider_value]
             data.update_period = new_value
-            data.update_period_label.caption = "Update period (ticks): " .. tostring(new_value)
+
+            local label = get_config_gui_element(player, "railway_signalling_overseer_update_period_label")
+            label.caption = "Update period (ticks): " .. tostring(new_value)
         elseif name == "railway_signalling_overseer_train_length_slider" then
             local player = game.players[event.player_index]
             local data = global.railway_signalling_overseer_data[player.index]
             local new_value = event.element.slider_value
             data.train_length = new_value
-            data.train_length_label.caption = "Train length (wagons): " .. tostring(new_value)
+
+            local label = get_config_gui_element(player, "railway_signalling_overseer_train_length_label")
+            label.caption = "Train length (wagons): " .. tostring(new_value)
         end
     end)
 
@@ -287,6 +301,7 @@ do
         for _, player in pairs(game.players) do
             setup_mod_globals(player)
             setup_mod_gui(player)
+            close_config_window(player)
         end
     end
 
