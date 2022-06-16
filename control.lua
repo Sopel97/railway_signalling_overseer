@@ -415,7 +415,7 @@ do
     local function get_rail_signal_type(signal, rail)
         if signal == nil or (rail and not owns_signal(rail, signal)) then
             return rail_signal_type.none
-        elseif signal.type == "rail-signal" or signal.type == "train-stop" then
+        elseif signal.type == "rail-signal" then
             return rail_signal_type.normal
         elseif signal.type == "rail-chain-signal" then
             return rail_signal_type.chain

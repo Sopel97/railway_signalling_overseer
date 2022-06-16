@@ -5,16 +5,17 @@ Version 1.1.3
     - Initial railway scan range selection slider.
   Fixes:
     - Fixed and improved graph creation and expansion.
+    - Fixed stations being incorrectly recognized as rail signals.
 ---------------------------------------------------------------------------------------------------
 Version: 1.1.2
   Fixes:
-    - Fix GUI state consistency issues.
+    - Fixed GUI state consistency issues.
 ---------------------------------------------------------------------------------------------------
 Version: 1.1.1
   Fixes:
     - Fixed infinite recursion due to some cycles in the railway network.
     - More graceful handling of railways with two-way segments, at least no crashes.
-    - Fix crashes on open/close config caused by incorrect gui bookkeeping.
+    - Fixed crashes on open/close config caused by incorrect gui bookkeeping.
 ---------------------------------------------------------------------------------------------------
 Version: 1.1.0
   Features:
