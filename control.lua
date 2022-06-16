@@ -8,10 +8,13 @@ do
         180, 240, 300, 360, 420, 480, 540, 600
     }
 
+    local MAX_RAIL_SCAN_RANGE = 6*32
+    local DEFAULT_RAIL_SCAN_RANGE = 3*32
+
     -- A rough estimate. We cannot get the actual zoom so we
     -- need to use an upper bound. This is used to determine
     -- player view area so that we can get enough rails into the graph.
-    MIN_ZOOM = 0.28
+    local MIN_ZOOM = 0.28
 
     local rail_traffic_direction = {
         indeterminate = 0,
@@ -100,6 +103,7 @@ do
             enabled = old_data.enabled or true,
             only_show_problems = old_data.only_show_problems or false,
             renderings = old_data.renderings or {},
+            initial_rail_scan_range = old_data.initial_rail_scan_range or DEFAULT_RAIL_SCAN_RANGE,
             partial_update_data = {
                 segment_graph = nil
             }
@@ -214,6 +218,26 @@ do
 
             flow.add{
                 type = "label",
+                caption = "Initial scan range (tiles): " .. tostring(data.initial_rail_scan_range),
+                name = "railway_signalling_overseer_initial_scan_range_label"
+            }
+            flow.add{
+                type = "slider",
+                name = "railway_signalling_overseer_initial_scan_range_slider",
+                value = data.initial_rail_scan_range,
+                value_step = 1,
+                minimum_value = 32,
+                maximum_value = MAX_RAIL_SCAN_RANGE,
+                discrete_slider = true,
+                discrete_values = true
+            }
+
+            flow.add{
+                type = "line"
+            }
+
+            flow.add{
+                type = "label",
                 caption = "Update period (ticks): " .. tostring(data.update_period),
                 name = "railway_signalling_overseer_update_period_label"
             }
@@ -292,23 +316,22 @@ do
         end
     end
 
-    local function get_player_visible_area(player)
+    local function get_area_around_the_player(player, range_x)
         local x = player.position.x
         local y = player.position.y
         local resx = player.display_resolution.width
         local resy = player.display_resolution.height
-        local s = player.display_scale
-        local zoom = MIN_ZOOM
-        local top_left_x = x - resx/2.0/32.0/s/zoom
-        local top_left_y = y - resy/2.0/32.0/s/zoom
-        local bottom_right_x = x + resx/2.0/32.0/s/zoom
-        local bottom_right_y = y + resy/2.0/32.0/s/zoom
+        local range_y = range_x * (resy / resx)
+        local top_left_x = x - range_x
+        local top_left_y = y - range_y
+        local bottom_right_x = x + range_x
+        local bottom_right_y = y + range_y
         return {left_top={top_left_x, top_left_y}, right_bottom={bottom_right_x, bottom_right_y}}
     end
 
-    local function get_player_visible_rails(player)
-        return player.surface.find_entities_filtered{
-            area=get_player_visible_area(player),
+    local function get_rails_in_area(surface, area)
+        return surface.find_entities_filtered{
+            area=area,
             type={"curved-rail", "straight-rail"}
         }
     end
@@ -1351,8 +1374,9 @@ do
         if type == partial_update_type.create_graph or type == partial_update_type.all then
             -- This needs to be formed in one tick sadly, can't smear it.
             -- Otherwise we could end up with an inconsistent railway graph due to changes between ticks.
-            local rails = get_player_visible_rails(player)
-            local segment_graph = create_railway_segment_graph_dynamic(rails, get_player_visible_area(player))
+            local area = get_area_around_the_player(player, data.initial_rail_scan_range)
+            local rails = get_rails_in_area(player.surface, area)
+            local segment_graph = create_railway_segment_graph_dynamic(rails, area)
             data.partial_update_data.segment_graph = segment_graph
         end
 
@@ -1458,6 +1482,14 @@ do
 
             local label = get_config_gui_element(player, "railway_signalling_overseer_train_length_label")
             label.caption = "Train length (wagons): " .. tostring(new_value)
+        elseif name == "railway_signalling_overseer_initial_scan_range_slider" then
+            local player = game.players[event.player_index]
+            local data = global.railway_signalling_overseer_data[player.index]
+            local new_value = event.element.slider_value
+            data.initial_rail_scan_range = new_value
+
+            local label = get_config_gui_element(player, "railway_signalling_overseer_initial_scan_range_label")
+            label.caption = "Initial scan range (tiles): " .. tostring(new_value)
         end
     end)
 
