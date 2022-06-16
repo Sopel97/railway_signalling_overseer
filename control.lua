@@ -1254,12 +1254,15 @@ do
         end
 
         node.min_distance_to_sink = -1
+        -- We use a local variable to prevent order from changing the results
+        local min_dist = -1
         for _, next_id in ipairs(node.next) do
             local dist = get_block_size_from_segment(block, next_id) + node.segment_length
-            if node.min_distance_to_sink == -1 or dist < node.min_distance_to_sink then
-                node.min_distance_to_sink = dist
+            if min_dist == -1 or dist < min_dist then
+                min_dist = dist
             end
         end
+        node.min_distance_to_sink = min_dist
         if node.min_distance_to_sink == -1 then
             node.min_distance_to_sink = node.segment_length
         end
