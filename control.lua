@@ -93,6 +93,7 @@ do
             update_period = old_data.update_period or 60,
             enabled = old_data.enabled or true,
             only_show_problems = old_data.only_show_problems or false,
+            renderings = old_data.renderings or {},
             partial_update_data = {
                 segment_graph = nil
             }
@@ -220,6 +221,16 @@ do
                 discrete_slider = true,
                 discrete_values = true
             }
+            flow.add{
+                type = "button",
+                caption = "Run single update",
+                name = "railway_signalling_overseer_run_single_update_button"
+            }
+            flow.add{
+                type = "button",
+                caption = "Clear overlays",
+                name = "railway_signalling_overseer_clear_overlays_button"
+            }
 
             flow.add{
                 type = "line"
@@ -254,48 +265,6 @@ do
         end
     end
 
-    script.on_event(defines.events.on_gui_click, function(event)
-        local name = event.element.name
-        if name == "railway_signalling_overseer_toggle_config_window_button" then
-            local player = game.players[event.player_index]
-            toggle_config_window(player)
-        end
-    end)
-
-    script.on_event(defines.events.on_gui_checked_state_changed, function(event)
-        local name = event.element.name
-        if name == "railway_signalling_overseer_enable_checkbox" then
-            local player = game.players[event.player_index]
-            local data = global.railway_signalling_overseer_data[player.index]
-            data.enabled = event.element.state
-        elseif name == "railway_signalling_overseer_only_show_problems_checkbox" then
-            local player = game.players[event.player_index]
-            local data = global.railway_signalling_overseer_data[player.index]
-            data.only_show_problems = event.element.state
-        end
-    end)
-
-    script.on_event(defines.events.on_gui_value_changed, function(event)
-        local name = event.element.name
-        if name == "railway_signalling_overseer_update_period_slider" then
-            local player = game.players[event.player_index]
-            local data = global.railway_signalling_overseer_data[player.index]
-            local new_value = UPDATE_PERIOD_ALLOWED_VALUES[event.element.slider_value]
-            data.update_period = new_value
-
-            local label = get_config_gui_element(player, "railway_signalling_overseer_update_period_label")
-            label.caption = "Update period (ticks): " .. tostring(new_value)
-        elseif name == "railway_signalling_overseer_train_length_slider" then
-            local player = game.players[event.player_index]
-            local data = global.railway_signalling_overseer_data[player.index]
-            local new_value = event.element.slider_value
-            data.train_length = new_value
-
-            local label = get_config_gui_element(player, "railway_signalling_overseer_train_length_label")
-            label.caption = "Train length (wagons): " .. tostring(new_value)
-        end
-    end)
-
     local function reinitialize()
         global.railway_signalling_overseer_data = {}
         for _, player in pairs(game.players) do
@@ -305,19 +274,9 @@ do
         end
     end
 
-    script.on_init(function()
-        reinitialize()
-    end)
-
-    script.on_configuration_changed(function(event)
-        reinitialize()
-    end)
-
-    script.on_event(defines.events.on_player_created, function(event)
-        reinitialize()
-    end)
-
     --------- END OF GUI HANDLING
+
+    --------- LOGIC
 
     local function to_str(obj)
         if obj == nil then
@@ -1346,6 +1305,15 @@ do
         return text, color
     end
 
+    local function clear_renderings(player)
+        local data = get_config(player)
+        local old_renderings = data.renderings
+        for _, r in ipairs(old_renderings) do
+            rendering.destroy(r)
+        end
+        data.renderings = {}
+    end
+
     local function update(player, type, ttl)
         local data = get_config(player)
         local train_length = data.train_length
@@ -1361,6 +1329,8 @@ do
         if type == partial_update_type.label_graph_and_render or type == partial_update_type.all then
             local segment_graph = data.partial_update_data.segment_graph
             if segment_graph ~= nil then
+                clear_renderings(player)
+
                 local interesting_nodes = label_segments(segment_graph, train_length)
                 for _, node in ipairs(interesting_nodes) do
                     local text, color = make_node_text(node, train_length)
@@ -1374,7 +1344,8 @@ do
                             target = node.backmost_rail_pos
                             orientation = node.backmost_rail_orient
                         end
-                        rendering.draw_text{
+
+                        local rendering_id = rendering.draw_text{
                             color = color,
                             text = text,
                             target = target,
@@ -1383,8 +1354,12 @@ do
                             alignment = "center",
                             vertical_alignment = "middle",
                             surface = player.surface,
-                            time_to_live = ttl + 1
+                            time_to_live = ttl
                         }
+
+                        if ttl == nil then
+                            table.insert(data.renderings, rendering_id)
+                        end
                     end
                 end
 
@@ -1399,8 +1374,74 @@ do
         for _, player in pairs(game.players) do
             local type = get_partial_update_type(player, tick)
             if type ~= partial_update_type.none then
-                update(player, type, get_config(player).update_period)
+                update(player, type, get_config(player).update_period + 1)
             end
         end
     end)
+
+    --------- END OF LOGIC
+
+    --------- EVENTS
+
+    script.on_event(defines.events.on_gui_click, function(event)
+        local name = event.element.name
+        if name == "railway_signalling_overseer_toggle_config_window_button" then
+            local player = game.players[event.player_index]
+            toggle_config_window(player)
+        elseif name == "railway_signalling_overseer_run_single_update_button" then
+            local player = game.players[event.player_index]
+            update(player, partial_update_type.all, nil)
+        elseif name == "railway_signalling_overseer_clear_overlays_button" then
+            local player = game.players[event.player_index]
+            clear_renderings(player)
+        end
+    end)
+
+    script.on_event(defines.events.on_gui_checked_state_changed, function(event)
+        local name = event.element.name
+        if name == "railway_signalling_overseer_enable_checkbox" then
+            local player = game.players[event.player_index]
+            local data = global.railway_signalling_overseer_data[player.index]
+            data.enabled = event.element.state
+        elseif name == "railway_signalling_overseer_only_show_problems_checkbox" then
+            local player = game.players[event.player_index]
+            local data = global.railway_signalling_overseer_data[player.index]
+            data.only_show_problems = event.element.state
+        end
+    end)
+
+    script.on_event(defines.events.on_gui_value_changed, function(event)
+        local name = event.element.name
+        if name == "railway_signalling_overseer_update_period_slider" then
+            local player = game.players[event.player_index]
+            local data = global.railway_signalling_overseer_data[player.index]
+            local new_value = UPDATE_PERIOD_ALLOWED_VALUES[event.element.slider_value]
+            data.update_period = new_value
+
+            local label = get_config_gui_element(player, "railway_signalling_overseer_update_period_label")
+            label.caption = "Update period (ticks): " .. tostring(new_value)
+        elseif name == "railway_signalling_overseer_train_length_slider" then
+            local player = game.players[event.player_index]
+            local data = global.railway_signalling_overseer_data[player.index]
+            local new_value = event.element.slider_value
+            data.train_length = new_value
+
+            local label = get_config_gui_element(player, "railway_signalling_overseer_train_length_label")
+            label.caption = "Train length (wagons): " .. tostring(new_value)
+        end
+    end)
+
+    script.on_init(function()
+        reinitialize()
+    end)
+
+    script.on_configuration_changed(function(event)
+        reinitialize()
+    end)
+
+    script.on_event(defines.events.on_player_created, function(event)
+        reinitialize()
+    end)
+
+    --------- END OF EVENTS
 end
