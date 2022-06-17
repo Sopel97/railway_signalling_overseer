@@ -10,7 +10,7 @@ This is a mod for factorio that checks the visible railway in realtime and check
 
 ## How it works
 
-First it gets all rails in the players visible area (using an upper bound as there is no way to get the precise visible area). Then it identifies rails that have rail signals (or station) attached, and infers the traffic direction for these rails. From these rails a graph is expanded to cover enough railway to produce a result (around 2-3 blocks past the last visible chain signal). This graph is then turned from rail graph into a segment graph, to allow a more efficient look at the railway. Finally, traversals and block discovery algorithms are performed to find chain signal and block relations - this is where the problems are identified. The results are rendered on the surface. The graph formation and issue identification steps are done in separate ticks to reduce the lag spikes for denser areas.
+First it gets all signals in an area around the player. Then it takes rail segments attacked to those signals and infers the traffic direction for them. From these rail segments a graph is expanded to cover enough railway to produce a result (around 2-3 blocks past the last visible chain signal). After this the traversals and block discovery algorithms are performed to find chain signal and block relations - this is where the problems are identified. The results are rendered on the surface. The graph formation and issue identification steps are done in separate ticks (unless update every tick selected) to reduce the lag spikes for denser areas.
 
 ## Preview
 
@@ -19,9 +19,6 @@ First it gets all rails in the players visible area (using an upper bound as the
 ![](img/preview_intersection.png)
 
 ## Known issues
-
-- sometimes produces incorrect results when a station is placed on a rail split
-- can be slow, however it's unclear right now how to optimize this further
 
 ## Known NOT issues
 
