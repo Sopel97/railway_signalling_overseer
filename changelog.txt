@@ -1,4 +1,8 @@
 ---------------------------------------------------------------------------------------------------
+Version 1.1.7
+  Improvements:
+    - Optimizations regarding graph creations and overlay generation.
+---------------------------------------------------------------------------------------------------
 Version 1.1.6
   Features:
     - Allow multiple message overlays per segment.
