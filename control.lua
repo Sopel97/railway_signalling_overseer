@@ -1335,6 +1335,13 @@ do
 
     --------- EVENTS
 
+    local function disable_realtime_updates(player)
+        local data = global.railway_signalling_overseer_data[player.index]
+        local realtime_update_checkbox = get_config_gui_element(player, "railway_signalling_overseer_enable_checkbox")
+        realtime_update_checkbox.state = false
+        data.enabled = false
+    end
+
     script.on_event(defines.events.on_gui_click, function(event)
         local name = event.element.name
         if name == "railway_signalling_overseer_toggle_config_window_button" then
@@ -1344,12 +1351,14 @@ do
             local player = game.players[event.player_index]
             local data = global.railway_signalling_overseer_data[player.index]
             local range = data.initial_rail_scan_range
+            disable_realtime_updates(player)
             update(player, partial_update_type.all, range, nil)
         elseif name == "railway_signalling_overseer_clear_overlays_button" then
             local player = game.players[event.player_index]
             clear_renderings(player)
         elseif name == "railway_signalling_overseer_run_single_update_whole_map_button" then
             local player = game.players[event.player_index]
+            disable_realtime_updates(player)
             update(player, partial_update_type.all, nil, nil)
         end
     end)
