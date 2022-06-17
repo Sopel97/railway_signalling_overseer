@@ -430,6 +430,20 @@ do
         return back, front
     end
 
+    local function get_rail_neighbours_ids_one_side(rail, direction)
+        local entities = {}
+        insert_if_not_nil(entities, rail.get_connected_rail{rail_direction=direction, rail_connection_direction=defines.rail_connection_direction.left})
+        insert_if_not_nil(entities, rail.get_connected_rail{rail_direction=direction, rail_connection_direction=defines.rail_connection_direction.straight})
+        insert_if_not_nil(entities, rail.get_connected_rail{rail_direction=direction, rail_connection_direction=defines.rail_connection_direction.right})
+
+        local ids = {}
+        for _, e in ipairs(entities) do
+            table.insert(front, make_entity_id(e))
+        end
+
+        return ids
+    end
+
     local function get_rail_signal_type(signal, rail)
         if signal == nil or (rail and not owns_signal(rail, signal)) then
             return rail_signal_type.none
@@ -440,6 +454,22 @@ do
         else
             return rail_signal_type.none
         end
+    end
+
+    local function get_segment_signals(rail)
+        local front_in_signal = rail.get_rail_segment_entity(defines.rail_direction.front, true)
+        local front_out_signal = rail.get_rail_segment_entity(defines.rail_direction.front, false)
+        local back_in_signal = rail.get_rail_segment_entity(defines.rail_direction.back, true)
+        local back_out_signal = rail.get_rail_segment_entity(defines.rail_direction.back, false)
+
+        local segment_signals = {
+            front_in = get_rail_signal_type(front_in_signal),
+            front_out = get_rail_signal_type(front_out_signal),
+            back_in = get_rail_signal_type(back_in_signal),
+            back_out = get_rail_signal_type(back_out_signal)
+        }
+
+        return segment_signals
     end
 
     local function get_rail_signals(rail)
@@ -502,6 +532,60 @@ do
         return false
     end
 
+    local function get_neighbour_segments(rail, direction, is_front)
+        local segments = {}
+
+        local left_neighbour_rail = rail.get_connected_rail{rail_direction=direction, rail_connection_direction=defines.rail_connection_direction.left}
+        if left_neighbour_rail ~= nil then
+            local left_front_rail, left_front_dir = left_neighbour_rail.get_rail_segment_end(defines.rail_direction.front)
+            local left_back_rail, left_back_dir = left_neighbour_rail.get_rail_segment_end(defines.rail_direction.back)
+            if is_neighbour_connected_by_front(rail, left_front_rail) == is_front then
+                left_front_rail, left_back_rail = left_back_rail, left_front_rail
+                left_front_dir, left_back_dir = left_back_dir, left_front_dir
+            end
+            table.insert(segments, {
+                frontmost_rail = left_front_rail,
+                backmost_rail = left_back_rail,
+                frontmost_dir = left_front_dir,
+                backmost_dir = left_back_dir
+            })
+        end
+
+        left_neighbour_rail = rail.get_connected_rail{rail_direction=direction, rail_connection_direction=defines.rail_connection_direction.straight}
+        if left_neighbour_rail ~= nil then
+            local left_front_rail, left_front_dir = left_neighbour_rail.get_rail_segment_end(defines.rail_direction.front)
+            local left_back_rail, left_back_dir = left_neighbour_rail.get_rail_segment_end(defines.rail_direction.back)
+            if is_neighbour_connected_by_front(rail, left_front_rail) == is_front then
+                left_front_rail, left_back_rail = left_back_rail, left_front_rail
+                left_front_dir, left_back_dir = left_back_dir, left_front_dir
+            end
+            table.insert(segments, {
+                frontmost_rail = left_front_rail,
+                backmost_rail = left_back_rail,
+                frontmost_dir = left_front_dir,
+                backmost_dir = left_back_dir
+            })
+        end
+
+        left_neighbour_rail = rail.get_connected_rail{rail_direction=direction, rail_connection_direction=defines.rail_connection_direction.right}
+        if left_neighbour_rail ~= nil then
+            local left_front_rail, left_front_dir = left_neighbour_rail.get_rail_segment_end(defines.rail_direction.front)
+            local left_back_rail, left_back_dir = left_neighbour_rail.get_rail_segment_end(defines.rail_direction.back)
+            if is_neighbour_connected_by_front(rail, left_front_rail) == is_front then
+                left_front_rail, left_back_rail = left_back_rail, left_front_rail
+                left_front_dir, left_back_dir = left_back_dir, left_front_dir
+            end
+            table.insert(segments, {
+                frontmost_rail = left_front_rail,
+                backmost_rail = left_back_rail,
+                frontmost_dir = left_front_dir,
+                backmost_dir = left_back_dir
+            })
+        end
+
+        return segments
+    end
+
     local function box_contains_point(box, point)
         return     point.x >= box.left_top[1]
                and point.x <= box.right_bottom[1]
@@ -524,20 +608,27 @@ do
             -- We're not interested in whole segments right now, as a single
             -- rail with a signal is enough to grow the railway later.
             if has_any_rail_signals(rail_signals) then
-                local id = make_entity_id(rail)
-                local begin_signal, end_signal = get_begin_end_signals(rail_signals)
-
-                local prev, next = get_rail_neighbours_ids(rail)
-
-                local traffic_direction = infer_rail_traffic_direction_from_signals(segment_signals)
+                local traffic_direction = infer_rail_traffic_direction_from_signals(rail_signals)
                 if traffic_direction == rail_traffic_direction.indeterminate or traffic_direction == rail_traffic_direction.universal then
                     -- We cannot use these as a base, becuase they don't carry any information about the traffic direction.
                 else
-                    if traffic_direction == rail_traffic_direction.backward then
-                        prev, next = next, prev
+                    local begin_signal, end_signal = get_begin_end_signals(segment_signals)
+
+                    local frontmost = nil
+                    local backmost = nil
+                    local frontmost_dir = nil
+                    local backmost_dir = nil
+                    if traffic_direction == rail_traffic_direction.forward then
+                        frontmost, frontmost_dir = rail.get_rail_segment_end(defines.rail_direction.front)
+                        backmost, backmost_dir = rail.get_rail_segment_end(defines.rail_direction.back)
+                    else --if traffic_direction == rail_traffic_direction.backward then
+                        frontmost, frontmost_dir = rail.get_rail_segment_end(defines.rail_direction.back)
+                        backmost, backmost_dir = rail.get_rail_segment_end(defines.rail_direction.front)
                     end
 
-                    local segment_length = rail.get_rail_segment_length()
+                    local id = make_entity_id(backmost)
+
+                    local segment_length = backmost.get_rail_segment_length()
 
                     local forward_distance_from_chain = nil
                     if end_signal == rail_signal_type.chain then
@@ -551,15 +642,15 @@ do
                     end
 
                     rail_graph[id] = {
-                        entity = rail,
-                        segment_signals = segment_signals,
+                        frontmost_rail = frontmost,
+                        backmost_rail = backmost,
+                        frontmost_dir = frontmost_dir,
+                        backmost_dir = backmost_dir,
                         begin_signal = begin_signal,
                         end_signal = end_signal,
-                        rail_signals = rail_signals,
+                        next = {},
+                        prev = {},
                         segment_length = segment_length,
-                        next = next,
-                        prev = prev,
-                        traffic_direction = traffic_direction,
                         is_inside_area = true,
                         forward_distance_from_chain = forward_distance_from_chain,
                         is_chain_uncertain = false,
@@ -591,23 +682,19 @@ do
 
             local node = rail_graph[id]
 
-            -- get neighbour rail entities
-            local prev, next = get_rail_neighbours(node.entity)
-            if node.traffic_direction == rail_traffic_direction.backward then
-                prev, next = next, prev
-            end
-
             if (node.growth_direction == graph_node_growth_direction.forward or node.growth_direction == graph_node_growth_direction.both) then
+                local next_segments = get_neighbour_segments(node.frontmost_rail, node.frontmost_dir, true)
+
                 -- try to expand each neighbour
-                for _, rail in ipairs(next) do
-                    local rail_id = make_entity_id(rail)
-                    local new_node = rail_graph[rail_id]
+                for _, segment in ipairs(next_segments) do
+                    local segment_id = make_entity_id(segment.backmost_rail)
+                    local new_node = rail_graph[segment_id]
                     -- if already present in the graph then we don't care
                     if new_node == nil then
                         -- get signals, we're not interested in segment signals here
                         -- we just want to know if the rail constitutes a change in block
-                        local segment_signals, rail_signals = get_rail_signals(rail)
-                        local begin_signal, end_signal = get_begin_end_signals(rail_signals)
+                        local segment_signals = get_segment_signals(segment.backmost_rail)
+                        local begin_signal, end_signal = get_begin_end_signals(segment_signals)
 
                         -- make sure we have consistent signal information between neighbours
                         if begin_signal == rail_signal_type.none then
@@ -630,22 +717,11 @@ do
                             forward_distance_from_chain = node.forward_distance_from_chain + 1
                         end
 
-                        local is_inside_area = box_contains_point(area, rail.position)
 
                         -- see if we actually want to expand there
                         if forward_distance_from_chain <= 2 then
-                            local segment_length = rail.get_rail_segment_length()
-                            local prev, next = get_rail_neighbours_ids(rail)
-                            local traffic_direction = nil
-
-                            -- find the direction of traffic for this particular rail
-                            -- and correct the order of neighbours if necessary
-                            if is_neighbour_connected_by_front(node.entity, rail) then
-                                traffic_direction = rail_traffic_direction.backward
-                                next, prev = prev, next
-                            else
-                                traffic_direction = rail_traffic_direction.forward
-                            end
+                            local segment_length = segment.backmost_rail.get_rail_segment_length()
+                            local is_inside_area = box_contains_point(area, segment.backmost_rail.position) and box_contains_point(area, segment.frontmost_rail.position)
 
                             local growth_direction = graph_node_growth_direction.both
                             if not is_inside_area then
@@ -656,23 +732,24 @@ do
                             end
 
                             new_node = {
-                                entity = rail,
-                                segment_signals = segment_signals,
+                                frontmost_rail = segment.frontmost_rail,
+                                backmost_rail = segment.backmost_rail,
+                                frontmost_dir = segment.frontmost_dir,
+                                backmost_dir = segment.backmost_dir,
                                 begin_signal = begin_signal,
                                 end_signal = end_signal,
-                                rail_signals = rail_signals,
+                                next = {},
+                                prev = {},
                                 segment_length = segment_length,
-                                next = next,
-                                prev = prev,
-                                traffic_direction = traffic_direction,
                                 is_inside_area = is_inside_area,
                                 forward_distance_from_chain = forward_distance_from_chain,
                                 is_chain_uncertain = false,
                                 growth_direction = growth_direction
                             }
 
-                            rail_graph[rail_id] = new_node
-                            table.insert(queues[forward_distance_from_chain], rail_id)
+                            rail_graph[segment_id] = new_node
+                            table.insert(queues[forward_distance_from_chain], segment_id)
+                            table.insert(node.next, segment_id)
                         end
                     else
                         -- If it's already there then just make sure everything is consitent
@@ -684,20 +761,23 @@ do
                         if node.end_signal == rail_signal_type.none then
                             node.end_signal = new_node.begin_signal
                         end
+                        table.insert(node.next, segment_id)
                     end
                 end
             end
 
             if (node.growth_direction == graph_node_growth_direction.backward or node.growth_direction == graph_node_growth_direction.both) then
+                local prev_segments = get_neighbour_segments(node.backmost_rail, node.backmost_dir, false)
+
                 -- now we have to do the same but in the other direction
-                for _, rail in ipairs(prev) do
-                    local rail_id = make_entity_id(rail)
-                    local new_node = rail_graph[rail_id]
+                for _, segment in ipairs(prev_segments) do
+                    local segment_id = make_entity_id(segment.backmost_rail)
+                    local new_node = rail_graph[segment_id]
                     -- if present then we don't care
                     if new_node == nil then
                         -- get signals, we're not interested in segment signals
-                        local segment_signals, rail_signals = get_rail_signals(rail)
-                        local begin_signal, end_signal = get_begin_end_signals(rail_signals)
+                        local segment_signals = get_segment_signals(segment.backmost_rail)
+                        local begin_signal, end_signal = get_begin_end_signals(segment_signals)
 
                         if end_signal == rail_signal_type.none then
                             end_signal = node.begin_signal
@@ -715,20 +795,10 @@ do
                             forward_distance_from_chain = node.forward_distance_from_chain - 1
                         end
 
-                        local is_inside_area = box_contains_point(area, rail.position)
-
                         -- see if we actually want to expand there
                         if forward_distance_from_chain >= -1 then
-                            local segment_length = rail.get_rail_segment_length()
-                            local prev, next = get_rail_neighbours_ids(rail)
-                            local traffic_direction = nil
-
-                            if is_neighbour_connected_by_front(node.entity, rail) then
-                                traffic_direction = rail_traffic_direction.forward
-                            else
-                                traffic_direction = rail_traffic_direction.backward
-                                next, prev = prev, next
-                            end
+                            local segment_length = segment.backmost_rail.get_rail_segment_length()
+                            local is_inside_area = box_contains_point(area, segment.backmost_rail.position) and box_contains_point(area, segment.frontmost_rail.position)
 
                             local growth_direction = graph_node_growth_direction.both
                             if not is_inside_area then
@@ -736,15 +806,15 @@ do
                             end
 
                             new_node = {
-                                entity = rail,
-                                segment_signals = segment_signals,
+                                frontmost_rail = segment.frontmost_rail,
+                                backmost_rail = segment.backmost_rail,
+                                frontmost_dir = segment.frontmost_dir,
+                                backmost_dir = segment.backmost_dir,
                                 begin_signal = begin_signal,
                                 end_signal = end_signal,
-                                rail_signals = rail_signals,
+                                next = {},
+                                prev = {},
                                 segment_length = segment_length,
-                                next = next,
-                                prev = prev,
-                                traffic_direction = traffic_direction,
                                 is_inside_area = is_inside_area,
                                 forward_distance_from_chain = forward_distance_from_chain,
                                 -- When we expand backwards some chains won't get full coverage
@@ -753,8 +823,9 @@ do
                                 growth_direction = growth_direction
                             }
 
-                            rail_graph[rail_id] = new_node
-                            table.insert(queues[forward_distance_from_chain], rail_id)
+                            rail_graph[segment_id] = new_node
+                            table.insert(queues[forward_distance_from_chain], segment_id)
+                            table.insert(node.prev, segment_id)
                         end
                     else
                         if new_node.end_signal == rail_signal_type.none then
@@ -763,72 +834,7 @@ do
                         if node.begin_signal == rail_signal_type.none then
                             node.begin_signal = new_node.end_signal
                         end
-                    end
-                end
-            end
-        end
-
-        -- Remove all references to neighbours who didn't make it into the graph.
-        -- This is because we want to make the graph self-contained, and the
-        -- previous steps should have expanded just enough for this graph to
-        -- make complete sense after removing these neighbour references.
-        for id, node in pairs(rail_graph) do
-            local new_next = {}
-            local new_prev = {}
-            for _, next_id in ipairs(node.next) do
-                if rail_graph[next_id] ~= nil then
-                    table.insert(new_next, next_id)
-                end
-            end
-            for _, prev_id in ipairs(node.prev) do
-                if rail_graph[prev_id] ~= nil then
-                    table.insert(new_prev, prev_id)
-                end
-            end
-            node.next = new_next
-            node.prev = new_prev
-        end
-
-        -- Now we want to create a rail segment graph
-        -- First we assign indices to frontmost and backmost rails
-        -- in each segment in the original graph.
-        -- Later we will never care about rails that lie in the middle of a segment.
-        local segment_graph = {}
-        local visited_rails = {}
-        local next_segment_index = 1
-        for id, node in pairs(rail_graph) do
-            if not visited_rails[id] and (node.traffic_direction == rail_traffic_direction.forward or node.traffic_direction == rail_traffic_direction.backward) then
-                local frontmost_id = nil
-                local backmost_id = nil
-
-                if node.traffic_direction == rail_traffic_direction.forward then
-                    frontmost_id = make_entity_id(node.entity.get_rail_segment_end(defines.rail_direction.front))
-                    backmost_id = make_entity_id(node.entity.get_rail_segment_end(defines.rail_direction.back))
-                else --if node.traffic_direction == rail_traffic_direction.backward then
-                    frontmost_id = make_entity_id(node.entity.get_rail_segment_end(defines.rail_direction.back))
-                    backmost_id = make_entity_id(node.entity.get_rail_segment_end(defines.rail_direction.front))
-                end
-
-                -- If everything was done correctly in the earlier steps then we
-                -- do NOT need to check if frontmost_id and backmost_id are in the rail graph.
-                if not visited_rails[frontmost_id] and not visited_rails[backmost_id] then
-                    visited_rails[id] = true
-                    visited_rails[frontmost_id] = true
-                    visited_rails[backmost_id] = true
-
-                    local frontmost = rail_graph[frontmost_id]
-                    local backmost = rail_graph[backmost_id]
-
-                    -- TODO: In some networks with two-way segments backmost/frontmost can be nil.
-                    --       It needs to be investigated why this exactly happens.
-                    --       Not indexing these segments can have some impact on the correctness/completeness
-                    --       of the results, but since two-way segments are not officially
-                    --       supported this is an acceptable solution.
-                    if frontmost ~= nil and backmost ~= nil then
-                        frontmost.segment_index = next_segment_index
-                        backmost.segment_index = next_segment_index
-
-                        next_segment_index = next_segment_index + 1
+                        table.insert(node.prev, segment_id)
                     end
                 end
             end
@@ -836,79 +842,47 @@ do
 
         -- Now create segment graph based on previously set indices
         for id, node in pairs(rail_graph) do
-            local segment_index = node.segment_index
-            if segment_index and not segment_graph[segment_index] then
-                local frontmost_id = nil
-                local backmost_id = nil
+            local frontmost = node.frontmost_rail
+            local backmost = node.backmost_rail
 
-                if node.traffic_direction == rail_traffic_direction.forward then
-                    frontmost_id = make_entity_id(node.entity.get_rail_segment_end(defines.rail_direction.front))
-                    backmost_id = make_entity_id(node.entity.get_rail_segment_end(defines.rail_direction.back))
-                else --if node.traffic_direction == rail_traffic_direction.backward then
-                    frontmost_id = make_entity_id(node.entity.get_rail_segment_end(defines.rail_direction.back))
-                    backmost_id = make_entity_id(node.entity.get_rail_segment_end(defines.rail_direction.front))
-                end
-
-                local frontmost = rail_graph[frontmost_id]
-                local backmost = rail_graph[backmost_id]
-
-                local next_segments_indices = {}
-                for _, next_id in ipairs(frontmost.next) do
-                    table.insert(next_segments_indices, rail_graph[next_id].segment_index)
-                end
-                local prev_segments_indices = {}
-                for _, prev_id in ipairs(backmost.prev) do
-                    table.insert(prev_segments_indices, rail_graph[prev_id].segment_index)
-                end
-
-                local frontmost_rail_orient = nil
-                local frontmost_rail_pos = frontmost.entity.position
-                if frontmost.entity.type == "straight-rail" then
-                    local dir = frontmost.entity.direction
-                    local offset = STRAIGHT_RAIL_DIR_TO_OFFSET[dir]
-                    frontmost_rail_orient = STRAIGHT_RAIL_DIR_TO_ORIENT[dir]
-                    frontmost_rail_pos.x = frontmost_rail_pos.x + offset[1]
-                    frontmost_rail_pos.y = frontmost_rail_pos.y + offset[2]
-                else
-                    frontmost_rail_orient = CURVED_RAIL_DIR_TO_ORIENT[frontmost.entity.direction]
-                end
-
-                local backmost_rail_orient = nil
-                local backmost_rail_pos = backmost.entity.position
-                if backmost.entity.type == "straight-rail" then
-                    local dir = backmost.entity.direction
-                    local offset = STRAIGHT_RAIL_DIR_TO_OFFSET[dir]
-                    backmost_rail_orient = STRAIGHT_RAIL_DIR_TO_ORIENT[dir]
-                    backmost_rail_pos.x = backmost_rail_pos.x + offset[1]
-                    backmost_rail_pos.y = backmost_rail_pos.y + offset[2]
-                else
-                    backmost_rail_orient = CURVED_RAIL_DIR_TO_ORIENT[backmost.entity.direction]
-                end
-
-                if frontmost.traffic_direction == rail_traffic_direction.backward then
-                    frontmost_rail_orient = (frontmost_rail_orient + 0.5) % 1.0
-                end
-                if backmost.traffic_direction == rail_traffic_direction.backward then
-                    backmost_rail_orient = (backmost_rail_orient + 0.5) % 1.0
-                end
-
-                segment_graph[frontmost.segment_index] = {
-                    begin_signal = backmost.begin_signal,
-                    end_signal = frontmost.end_signal,
-                    segment_signals = frontmost.segment_signals,
-                    frontmost_rail_pos = frontmost_rail_pos,
-                    backmost_rail_pos = backmost_rail_pos,
-                    frontmost_rail_orient = frontmost_rail_orient,
-                    backmost_rail_orient = backmost_rail_orient,
-                    is_chain_uncertain = frontmost.is_chain_uncertain,
-                    next = next_segments_indices,
-                    prev = prev_segments_indices,
-                    segment_length = frontmost.segment_length
-                }
+            local frontmost_rail_orient = nil
+            local frontmost_rail_pos = frontmost.position
+            if frontmost.type == "straight-rail" then
+                local dir = frontmost.direction
+                local offset = STRAIGHT_RAIL_DIR_TO_OFFSET[dir]
+                frontmost_rail_orient = STRAIGHT_RAIL_DIR_TO_ORIENT[dir]
+                frontmost_rail_pos.x = frontmost_rail_pos.x + offset[1]
+                frontmost_rail_pos.y = frontmost_rail_pos.y + offset[2]
+            else
+                frontmost_rail_orient = CURVED_RAIL_DIR_TO_ORIENT[frontmost.direction]
             end
+
+            local backmost_rail_orient = nil
+            local backmost_rail_pos = backmost.position
+            if backmost.type == "straight-rail" then
+                local dir = backmost.direction
+                local offset = STRAIGHT_RAIL_DIR_TO_OFFSET[dir]
+                backmost_rail_orient = STRAIGHT_RAIL_DIR_TO_ORIENT[dir]
+                backmost_rail_pos.x = backmost_rail_pos.x + offset[1]
+                backmost_rail_pos.y = backmost_rail_pos.y + offset[2]
+            else
+                backmost_rail_orient = CURVED_RAIL_DIR_TO_ORIENT[backmost.direction]
+            end
+
+            if node.frontmost_dir == defines.rail_direction.back then
+                frontmost_rail_orient = (frontmost_rail_orient + 0.5) % 1.0
+            end
+            if node.backmost_dir == defines.rail_direction.front then
+                backmost_rail_orient = (backmost_rail_orient + 0.5) % 1.0
+            end
+
+            node.frontmost_rail_pos = frontmost_rail_pos
+            node.backmost_rail_pos = backmost_rail_pos
+            node.frontmost_rail_orient = frontmost_rail_orient
+            node.backmost_rail_orient = backmost_rail_orient
         end
 
-        return segment_graph
+        return rail_graph
     end
 
     -- OLD ROUTINE
@@ -1391,16 +1365,14 @@ do
     end
 
     local function node_ends_with_chain_signal(graph, node)
-        local begin_signal, end_signal = get_begin_end_signals(node.segment_signals)
-        if end_signal == rail_signal_type.chain then
+        if node.end_signal == rail_signal_type.chain then
             return true
         end
 
         for _, next_id in ipairs(node.next) do
             local next_node = graph[next_id]
 
-            local begin_signal, end_signal = get_begin_end_signals(next_node.segment_signals)
-            if begin_signal == rail_signal_type.chain then
+            if next_node.begin_signal == rail_signal_type.chain then
                 return true
             end
         end
@@ -1588,7 +1560,7 @@ do
 
                             if data.show_as_alerts and overlay.alert_message ~= nil then
                                 player.add_custom_alert(
-                                    node.backmost_entity,
+                                    node.backmost_rail,
                                     {type="item", name="rail-chain-signal"},
                                     overlay.alert_message,
                                     true
