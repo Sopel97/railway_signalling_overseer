@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version 1.1.8
+  Improvements:
+    - More optimizations to graph creation.
+  Changes:
+    - Make running a manual update disable automatic updates.
+---------------------------------------------------------------------------------------------------
 Version 1.1.7
   Improvements:
     - Optimizations regarding graph creations and overlay generation.
