@@ -614,21 +614,21 @@ do
                 else
                     local begin_signal, end_signal = get_begin_end_signals(segment_signals)
 
-                    local frontmost = nil
-                    local backmost = nil
+                    local frontmost_rail = nil
+                    local backmost_rail = nil
                     local frontmost_dir = nil
                     local backmost_dir = nil
                     if traffic_direction == rail_traffic_direction.forward then
-                        frontmost, frontmost_dir = rail.get_rail_segment_end(defines.rail_direction.front)
-                        backmost, backmost_dir = rail.get_rail_segment_end(defines.rail_direction.back)
+                        frontmost_rail, frontmost_dir = rail.get_rail_segment_end(defines.rail_direction.front)
+                        backmost_rail, backmost_dir = rail.get_rail_segment_end(defines.rail_direction.back)
                     else --if traffic_direction == rail_traffic_direction.backward then
-                        frontmost, frontmost_dir = rail.get_rail_segment_end(defines.rail_direction.back)
-                        backmost, backmost_dir = rail.get_rail_segment_end(defines.rail_direction.front)
+                        frontmost_rail, frontmost_dir = rail.get_rail_segment_end(defines.rail_direction.back)
+                        backmost_rail, backmost_dir = rail.get_rail_segment_end(defines.rail_direction.front)
                     end
 
-                    local id = make_entity_id(backmost)
+                    local id = make_entity_id(backmost_rail)
 
-                    local segment_length = backmost.get_rail_segment_length()
+                    local segment_length = backmost_rail.get_rail_segment_length()
 
                     local forward_distance_from_chain = nil
                     if end_signal == rail_signal_type.chain then
@@ -642,8 +642,8 @@ do
                     end
 
                     rail_graph[id] = {
-                        frontmost_rail = frontmost,
-                        backmost_rail = backmost,
+                        frontmost_rail = frontmost_rail,
+                        backmost_rail = backmost_rail,
                         frontmost_dir = frontmost_dir,
                         backmost_dir = backmost_dir,
                         begin_signal = begin_signal,
@@ -838,48 +838,6 @@ do
                     end
                 end
             end
-        end
-
-        -- Now create segment graph based on previously set indices
-        for id, node in pairs(rail_graph) do
-            local frontmost = node.frontmost_rail
-            local backmost = node.backmost_rail
-
-            local frontmost_rail_orient = nil
-            local frontmost_rail_pos = frontmost.position
-            if frontmost.type == "straight-rail" then
-                local dir = frontmost.direction
-                local offset = STRAIGHT_RAIL_DIR_TO_OFFSET[dir]
-                frontmost_rail_orient = STRAIGHT_RAIL_DIR_TO_ORIENT[dir]
-                frontmost_rail_pos.x = frontmost_rail_pos.x + offset[1]
-                frontmost_rail_pos.y = frontmost_rail_pos.y + offset[2]
-            else
-                frontmost_rail_orient = CURVED_RAIL_DIR_TO_ORIENT[frontmost.direction]
-            end
-
-            local backmost_rail_orient = nil
-            local backmost_rail_pos = backmost.position
-            if backmost.type == "straight-rail" then
-                local dir = backmost.direction
-                local offset = STRAIGHT_RAIL_DIR_TO_OFFSET[dir]
-                backmost_rail_orient = STRAIGHT_RAIL_DIR_TO_ORIENT[dir]
-                backmost_rail_pos.x = backmost_rail_pos.x + offset[1]
-                backmost_rail_pos.y = backmost_rail_pos.y + offset[2]
-            else
-                backmost_rail_orient = CURVED_RAIL_DIR_TO_ORIENT[backmost.direction]
-            end
-
-            if node.frontmost_dir == defines.rail_direction.back then
-                frontmost_rail_orient = (frontmost_rail_orient + 0.5) % 1.0
-            end
-            if node.backmost_dir == defines.rail_direction.front then
-                backmost_rail_orient = (backmost_rail_orient + 0.5) % 1.0
-            end
-
-            node.frontmost_rail_pos = frontmost_rail_pos
-            node.backmost_rail_pos = backmost_rail_pos
-            node.frontmost_rail_orient = frontmost_rail_orient
-            node.backmost_rail_orient = backmost_rail_orient
         end
 
         return rail_graph
@@ -1503,6 +1461,52 @@ do
         data.renderings = {}
     end
 
+    local function fill_node_overlay_locations(node)
+        local frontmost_rail = node.frontmost_rail
+        if frontmost_rail.valid then
+            local frontmost_rail_orient = nil
+            local frontmost_rail_pos = frontmost_rail.position
+            if frontmost_rail.type == "straight-rail" then
+                local dir = frontmost_rail.direction
+                local offset = STRAIGHT_RAIL_DIR_TO_OFFSET[dir]
+                frontmost_rail_orient = STRAIGHT_RAIL_DIR_TO_ORIENT[dir]
+                frontmost_rail_pos.x = frontmost_rail_pos.x + offset[1]
+                frontmost_rail_pos.y = frontmost_rail_pos.y + offset[2]
+            else
+                frontmost_rail_orient = CURVED_RAIL_DIR_TO_ORIENT[frontmost_rail.direction]
+            end
+
+            if node.frontmost_dir == defines.rail_direction.back then
+                frontmost_rail_orient = (frontmost_rail_orient + 0.5) % 1.0
+            end
+
+            node.frontmost_rail_pos = frontmost_rail_pos
+            node.frontmost_rail_orient = frontmost_rail_orient
+        end
+
+        local backmost_rail = node.backmost_rail
+        if backmost_rail.valid then
+            local backmost_rail_orient = nil
+            local backmost_rail_pos = backmost_rail.position
+            if backmost_rail.type == "straight-rail" then
+                local dir = backmost_rail.direction
+                local offset = STRAIGHT_RAIL_DIR_TO_OFFSET[dir]
+                backmost_rail_orient = STRAIGHT_RAIL_DIR_TO_ORIENT[dir]
+                backmost_rail_pos.x = backmost_rail_pos.x + offset[1]
+                backmost_rail_pos.y = backmost_rail_pos.y + offset[2]
+            else
+                backmost_rail_orient = CURVED_RAIL_DIR_TO_ORIENT[backmost_rail.direction]
+            end
+
+            if node.backmost_dir == defines.rail_direction.front then
+                backmost_rail_orient = (backmost_rail_orient + 0.5) % 1.0
+            end
+
+            node.backmost_rail_pos = backmost_rail_pos
+            node.backmost_rail_orient = backmost_rail_orient
+        end
+    end
+
 
     local function update(player, type, range, ttl)
         local data = get_config(player)
@@ -1538,10 +1542,11 @@ do
                         if color == COLOR_BAD or not data.only_show_problems then
                             local target = nil
                             local orientation = nil
-                            if overlay.position == segment_overlay_position.front then
+                            fill_node_overlay_locations(node)
+                            if overlay.position == segment_overlay_position.front and node.frontmost_rail_pos ~= nil then
                                 target = node.frontmost_rail_pos
                                 orientation = node.frontmost_rail_orient
-                            else
+                            elseif node.backmost_rail_pos ~= nil then
                                 target = node.backmost_rail_pos
                                 orientation = node.backmost_rail_orient
                             end
