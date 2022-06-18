@@ -205,7 +205,7 @@ do
 
             flow.add{
                 type = "checkbox",
-                caption = "Enable realtime updates",
+                caption = "Enable automatic updates",
                 name = "railway_signalling_overseer_enable_checkbox",
                 state = data.enabled
             }
@@ -270,7 +270,7 @@ do
             }
             local b = flow.add{
                 type = "button",
-                caption = "Analize WHOLE MAP",
+                caption = "Analyze WHOLE MAP",
                 name = "railway_signalling_overseer_run_single_update_whole_map_button"
             }
             b.style.font_color = {1, 0, 0}
