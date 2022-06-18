@@ -75,6 +75,188 @@ do
         [defines.direction.northwest] = {-0.5, -0.5},
     }
 
+    local STRAIGHT_RAIL_DIR_TO_POLYGON_VERTICES = {
+        [defines.direction.north] = {
+            {target={x=-0.6, y=-1}},
+            {target={x=-0.6, y=1}},
+            {target={x=0.6, y=-1}},
+            {target={x=0.6, y=1}},
+        },
+        [defines.direction.south] = {
+            {target={x=-0.6, y=-1}},
+            {target={x=-0.6, y=1}},
+            {target={x=0.6, y=-1}},
+            {target={x=0.6, y=1}},
+        },
+        [defines.direction.east] = {
+            {target={x=-1, y=-0.43}},
+            {target={x=-1, y=0.43}},
+            {target={x=1, y=-0.43}},
+            {target={x=1, y=0.43}},
+        },
+        [defines.direction.west] = {
+            {target={x=-1, y=-0.43}},
+            {target={x=-1, y=0.43}},
+            {target={x=1, y=-0.43}},
+            {target={x=1, y=0.43}},
+        },
+        [defines.direction.southeast] = {
+            {target={x=-0.5, y=0.77}},
+            {target={x=0.5, y=1.2}},
+            {target={x=0.5, y=-0.23}},
+            {target={x=1.5, y=0.2}},
+        },
+        [defines.direction.northeast] = {
+            {target={x=0.5, y=-1.23}},
+            {target={x=-0.5, y=-0.8}},
+            {target={x=1.5, y=-0.23}},
+            {target={x=0.5, y=0.2}},
+        },
+        [defines.direction.southwest] = {
+            {target={x=-0.5, y=-0.23}},
+            {target={x=-1.5, y=0.2}},
+            {target={x=0.5, y=0.78}},
+            {target={x=-0.5, y=1.2}},
+        },
+        [defines.direction.northwest] = {
+            {target={x=-1.5, y=-0.23}},
+            {target={x=-0.5, y=0.2}},
+            {target={x=-0.5, y=-1.23}},
+            {target={x=0.5, y=-0.8}},
+        },
+    }
+
+    local CURVED_RAIL_DIR_TO_POLYGON_VERTICES = {
+        [defines.direction.north] = {
+            {target={x=-2.5, y=-2.77}},
+            {target={x=-1.5, y=-3.2}},
+            {target={x=-1.58, y=-1.81}},
+            {target={x=-0.57, y=-2.21}},
+            {target={x=-0.91, y=-0.88}},
+            {target={x=0.12, y=-1.31}},
+            {target={x=-0.42, y=0.07}},
+            {target={x=0.71, y=-0.23}},
+            {target={x=0.12, y=1.45}},
+            {target={x=1.26, y=1.31}},
+            {target={x=0.33, y=2.48}},
+            {target={x=1.48, y=2.38}},
+            {target={x=0.4, y=4}},
+            {target={x=1.6, y=4}},
+        },
+        [defines.direction.south] = {
+            {target={x=2.5, y=2.77}},
+            {target={x=1.5, y=3.2}},
+            {target={x=1.58, y=1.81}},
+            {target={x=0.57, y=2.21}},
+            {target={x=0.91, y=0.88}},
+            {target={x=-0.12, y=1.31}},
+            {target={x=0.42, y=-0.07}},
+            {target={x=-0.71, y=0.23}},
+            {target={x=-0.12, y=-1.45}},
+            {target={x=-1.26, y=-1.31}},
+            {target={x=-0.33, y=-2.48}},
+            {target={x=-1.48, y=-2.38}},
+            {target={x=-0.4, y=-4}},
+            {target={x=-1.6, y=-4}},
+        },
+        [defines.direction.east] = {
+            {target={x=-4, y=0.57}},
+            {target={x=-4, y=1.43}},
+            {target={x=-2.56, y=0.48}},
+            {target={x=-2.39, y=1.31}},
+            {target={x=-1.4, y=0.25}},
+            {target={x=-0.97, y=1}},
+            {target={x=-0.21, y=-0.22}},
+            {target={x=0.37, y=0.52}},
+            {target={x=0.98, y=-0.89}},
+            {target={x=1.71, y=-0.26}},
+            {target={x=1.84, y=-1.54}},
+            {target={x=2.7, y=-1.04}},
+            {target={x=2.5, y=-2.23}},
+            {target={x=3.5, y=-1.8}},
+        },
+        [defines.direction.west] = {
+            {target={x=4, y=-0.57}},
+            {target={x=4, y=-1.43}},
+            {target={x=2.56, y=-0.48}},
+            {target={x=2.39, y=-1.31}},
+            {target={x=1.4, y=-0.25}},
+            {target={x=0.97, y=-1}},
+            {target={x=0.21, y=0.22}},
+            {target={x=-0.37, y=-0.52}},
+            {target={x=-0.98, y=0.89}},
+            {target={x=-1.71, y=0.26}},
+            {target={x=-1.84, y=1.54}},
+            {target={x=-2.7, y=1.04}},
+            {target={x=-2.5, y=2.23}},
+            {target={x=-3.5, y=1.8}},
+        },
+        [defines.direction.southeast] = {
+            {target={x=-4, y=-0.57}},
+            {target={x=-4, y=-1.43}},
+            {target={x=-2.56, y=-0.48}},
+            {target={x=-2.39, y=-1.31}},
+            {target={x=-1.4, y=-0.25}},
+            {target={x=-0.97, y=-1}},
+            {target={x=-0.21, y=0.22}},
+            {target={x=0.37, y=-0.52}},
+            {target={x=0.98, y=0.89}},
+            {target={x=1.71, y=0.26}},
+            {target={x=1.84, y=1.54}},
+            {target={x=2.7, y=1.04}},
+            {target={x=2.5, y=2.23}},
+            {target={x=3.5, y=1.8}},
+        },
+        [defines.direction.northeast] = {
+            {target={x=2.5, y=-2.8}},
+            {target={x=1.5, y=-3.23}},
+            {target={x=1.58, y=-1.81}},
+            {target={x=0.57, y=-2.21}},
+            {target={x=0.91, y=-0.88}},
+            {target={x=-0.12, y=-1.31}},
+            {target={x=0.42, y=0.07}},
+            {target={x=-0.71, y=-0.23}},
+            {target={x=-0.12, y=1.45}},
+            {target={x=-1.26, y=1.31}},
+            {target={x=-0.33, y=2.48}},
+            {target={x=-1.48, y=2.38}},
+            {target={x=-0.4, y=4}},
+            {target={x=-1.6, y=4}},
+        },
+        [defines.direction.southwest] = {
+            {target={x=-2.5, y=2.77}},
+            {target={x=-1.5, y=3.2}},
+            {target={x=-1.58, y=1.81}},
+            {target={x=-0.57, y=2.21}},
+            {target={x=-0.91, y=0.88}},
+            {target={x=0.12, y=1.31}},
+            {target={x=-0.42, y=-0.07}},
+            {target={x=0.71, y=0.23}},
+            {target={x=0.12, y=-1.45}},
+            {target={x=1.26, y=-1.31}},
+            {target={x=0.33, y=-2.48}},
+            {target={x=1.48, y=-2.38}},
+            {target={x=0.4, y=-4}},
+            {target={x=1.6, y=-4}},
+        },
+        [defines.direction.northwest] = {
+            {target={x=4, y=0.57}},
+            {target={x=4, y=1.43}},
+            {target={x=2.56, y=0.48}},
+            {target={x=2.39, y=1.31}},
+            {target={x=1.4, y=0.25}},
+            {target={x=0.97, y=1}},
+            {target={x=0.21, y=-0.22}},
+            {target={x=-0.37, y=0.52}},
+            {target={x=-0.98, y=-0.89}},
+            {target={x=-1.71, y=-0.26}},
+            {target={x=-1.84, y=-1.54}},
+            {target={x=-2.7, y=-1.04}},
+            {target={x=-2.5, y=-2.23}},
+            {target={x=-3.5, y=-1.8}},
+        },
+    }
+
     local CURVED_RAIL_DIR_TO_ORIENT = {
         [defines.direction.north] = 0.125 * 1.5,
         [defines.direction.northeast] = 0.125 * 2.5,
@@ -110,6 +292,7 @@ do
             renderings = old_data.renderings or {},
             initial_rail_scan_range = old_data.initial_rail_scan_range or DEFAULT_RAIL_SCAN_RANGE,
             show_as_alerts = old_data.show_as_alerts or false,
+            highlight_rails = old_data.highlight_rails or false,
             partial_update_data = {
                 segment_graph = nil
             }
@@ -222,6 +405,13 @@ do
                 caption = "Show problems as alerts",
                 name = "railway_signalling_overseer_show_as_alerts_checkbox",
                 state = data.show_as_alerts
+            }
+
+            flow.add{
+                type = "checkbox",
+                caption = "Highlight rails",
+                name = "railway_signalling_overseer_highlight_rails_checkbox",
+                state = data.highlight_rails
             }
 
             flow.add{
@@ -499,6 +689,69 @@ do
                and point.x <= box.right_bottom[1]
                and point.y >= box.left_top[2]
                and point.y <= box.right_bottom[2]
+    end
+
+    local function get_neighbour_rails(rail, dir)
+        local neighbour_rails = {}
+        insert_if_not_nil(neighbour_rails, rail.get_connected_rail{rail_direction=dir, rail_connection_direction=defines.rail_connection_direction.left})
+        insert_if_not_nil(neighbour_rails, rail.get_connected_rail{rail_direction=dir, rail_connection_direction=defines.rail_connection_direction.straight})
+        insert_if_not_nil(neighbour_rails, rail.get_connected_rail{rail_direction=dir, rail_connection_direction=defines.rail_connection_direction.right})
+        return neighbour_rails
+    end
+
+    local function get_rails_in_segment(segment)
+        local rails = {}
+
+        -- Check if the segment changed, because we do partial updates.
+        -- If it did we cannot traverse it.
+        do
+            if not segment.frontmost_rail.valid then
+                return rails
+            end
+
+            local rail = segment.frontmost_rail
+            local infer_
+            local frontmost_rail = nil
+            local backmost_rail = nil
+            local frontmost_dir = nil
+            local backmost_dir = nil
+            local frontmost_rail, frontmost_dir = rail.get_rail_segment_end(defines.rail_direction.front)
+            local backmost_rail, backmost_dir = rail.get_rail_segment_end(defines.rail_direction.back)
+
+            if frontmost_rail ~= segment.frontmost_rail then
+                frontmost_rail, backmost_rail = backmost_rail, frontmost_rail
+                frontmost_dir, backmost_dir = backmost_dir, frontmost_dir
+            end
+
+            if    frontmost_rail ~= segment.frontmost_rail
+               or backmost_rail ~= segment.backmost_rail
+               or frontmost_dir ~= segment.frontmost_dir
+               or backmost_dir ~= segment.backmost_dir then
+                return rails
+            end
+        end
+
+        local curr_rail = segment.backmost_rail
+        local curr_dir = nil
+        if segment.backmost_dir == defines.rail_direction.back then
+            curr_dir = defines.rail_direction.front
+        else
+            curr_dir = defines.rail_direction.back
+        end
+        while true do
+            table.insert(rails, curr_rail)
+            local next = get_neighbour_rails(curr_rail, curr_dir)
+            if curr_rail == segment.frontmost_rail then
+                break
+            end
+            if is_neighbour_connected_by_front(curr_rail, next[1]) then
+                curr_dir = defines.rail_direction.back
+            else
+                curr_dir = defines.rail_direction.front
+            end
+            curr_rail = next[1]
+        end
+        return rails
     end
 
     local function create_railway_segment_graph_dynamic(start_signals, area)
@@ -984,33 +1237,51 @@ do
         return smallest
     end
 
-    local function get_block_size_from_segment(block, start_segment_id)
+    local function table_concat(t1, t2)
+        local t = {}
+        for _, a in ipairs(t1) do
+            table.insert(t, a)
+        end
+        for _, a in ipairs(t2) do
+            table.insert(t, a)
+        end
+        return t
+    end
+
+
+    local function find_min_size_forward_block_from_segment(block, start_segment_id)
         -- use a DP algorithm that goes recursively into the block
         -- and leaves the temporary computation results in the nodes itself
+
         local node = block[start_segment_id]
         if node.min_distance_to_sink ~= nil then
             -- We use -1 as a special value designating "on the stack"
             if node.min_distance_to_sink < 0 then
-                return 0
+                return node.min_distance_to_sink_forward_block, 0
             end
-            return node.min_distance_to_sink
+            return node.min_distance_to_sink_forward_block, node.min_distance_to_sink
         end
 
         node.min_distance_to_sink = -1
+        node.min_distance_to_sink_forward_block = {}
         -- We use a local variable to prevent order from changing the results
         local min_dist = -1
+        local min_fwd_block = {}
         for _, next_id in ipairs(node.next) do
-            local dist = get_block_size_from_segment(block, next_id) + node.segment_length
+            local next_forward_block, dist = find_min_size_forward_block_from_segment(block, next_id)
+            dist = dist + node.segment_length
             if min_dist == -1 or dist < min_dist then
                 min_dist = dist
+                min_fwd_block = next_forward_block
             end
         end
         node.min_distance_to_sink = min_dist
+        node.min_distance_to_sink_forward_block = table_concat({start_segment_id}, min_fwd_block)
         if node.min_distance_to_sink == -1 then
             node.min_distance_to_sink = node.segment_length
         end
 
-        return node.min_distance_to_sink
+        return node.min_distance_to_sink_forward_block, node.min_distance_to_sink
     end
 
     local function find_blocks_after_chain_signals(graph, id)
@@ -1108,7 +1379,7 @@ do
                     for i, block_after_chain in ipairs(blocks_after_chains) do
                         local start_segment_id = segments_after_chains[i]
                         local node_after_chain = graph[start_segment_id]
-                        local size = get_block_size_from_segment(block_after_chain, start_segment_id)
+                        local forward_block, size = find_min_size_forward_block_from_segment(block_after_chain, start_segment_id)
                         if node.min_block_length_after_chain_signals == nil or size < node.min_block_length_after_chain_signals then
                             node.min_block_length_after_chain_signals = size
                         end
@@ -1122,6 +1393,10 @@ do
                         -- issue warnings
                         if tiles_to_train_length(size) < train_length then
                             node_after_chain.block_after_chain_too_small = true
+                            if node_after_chain.too_small_forward_blocks == nil then
+                                node_after_chain.too_small_forward_blocks = {}
+                            end
+                            table.insert(node_after_chain.too_small_forward_blocks, forward_block)
                         end
                     end
                 end
@@ -1243,7 +1518,41 @@ do
         end
     end
 
+    local function get_rail_polygon_vertices(rail)
+        if rail.type == "straight-rail" then
+            return STRAIGHT_RAIL_DIR_TO_POLYGON_VERTICES[rail.direction]
+        else
+            return CURVED_RAIL_DIR_TO_POLYGON_VERTICES[rail.direction]
+        end
+    end
 
+    local function highlight_rail(player, rail, ttl, renderings)
+        if not rail.valid then
+            return
+        end
+
+        local vertices = get_rail_polygon_vertices(rail)
+
+        local rendering_id = rendering.draw_polygon{
+            color = {0.4, 0, 0, 0.4},
+            vertices = vertices,
+            target = rail,
+            players = {player},
+            surface = rail.surface,
+            time_to_live = ttl
+        }
+
+        if ttl == nil then
+            table.insert(renderings, rendering_id)
+        end
+    end
+
+    local function highlight_segment(player, segment, ttl, renderings)
+        for _, rail in ipairs(get_rails_in_segment(segment)) do
+            highlight_rail(player, rail, ttl, renderings)
+        end
+    end
+    
     local function update(player, type, range, ttl)
         local data = get_config(player)
         local train_length = data.train_length
@@ -1266,6 +1575,7 @@ do
         end
 
         if type == partial_update_type.label_graph_and_render or type == partial_update_type.all then
+            local highlighted_segments_ids = {}
             local segment_graph = data.partial_update_data.segment_graph
             if segment_graph ~= nil then
                 clear_renderings(player)
@@ -1299,6 +1609,17 @@ do
                                 surface = player.surface,
                                 time_to_live = ttl
                             }
+
+                            if data.highlight_rails and node.too_small_forward_blocks then
+                                for _, fb in ipairs(node.too_small_forward_blocks) do
+                                    for _, segment_id in ipairs(fb) do
+                                        if not highlighted_segments_ids[segment_id] then
+                                            highlighted_segments_ids[segment_id] = true
+                                            highlight_segment(player, segment_graph[segment_id], ttl, data.renderings)
+                                        end
+                                    end
+                                end
+                            end
 
                             if data.show_as_alerts and overlay.alert_message ~= nil then
                                 player.add_custom_alert(
@@ -1378,6 +1699,10 @@ do
             local player = game.players[event.player_index]
             local data = global.railway_signalling_overseer_data[player.index]
             data.show_as_alerts = event.element.state
+        elseif name == "railway_signalling_overseer_highlight_rails_checkbox" then
+            local player = game.players[event.player_index]
+            local data = global.railway_signalling_overseer_data[player.index]
+            data.highlight_rails = event.element.state
         end
     end)
 
