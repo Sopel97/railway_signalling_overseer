@@ -1293,6 +1293,7 @@ do
                                 target = target,
                                 scale = 1.5,
                                 orientation = orientation,
+                                players = {player},
                                 alignment = "center",
                                 vertical_alignment = "middle",
                                 surface = player.surface,
