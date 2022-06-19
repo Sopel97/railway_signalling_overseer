@@ -770,9 +770,7 @@ do
             end
 
             if    frontmost_rail ~= segment.frontmost_rail
-               or backmost_rail ~= segment.backmost_rail
-               or frontmost_dir ~= segment.frontmost_dir
-               or backmost_dir ~= segment.backmost_dir then
+               or backmost_rail ~= segment.backmost_rail then
                 return rails
             end
         end
