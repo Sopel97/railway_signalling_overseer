@@ -47,6 +47,11 @@ do
         front = 1
     }
 
+    local ALL_RAIL_DIRECTIONS = {
+        defines.rail_direction.front,
+        defines.rail_direction.back,
+    }
+
     local ALL_RAIL_CONNECTION_DIRECTIONS = {
         defines.rail_connection_direction.left,
         defines.rail_connection_direction.straight,
@@ -516,6 +521,47 @@ do
 
     --------- LOGIC
 
+    local function table_concat(t1, t2)
+        local t = {}
+        for _, a in ipairs(t1) do
+            table.insert(t, a)
+        end
+        for _, a in ipairs(t2) do
+            table.insert(t, a)
+        end
+        return t
+    end
+
+    function deepcopy(orig)
+        local orig_type = type(orig)
+        local copy
+        if orig_type == 'table' then
+            copy = {}
+            for orig_key, orig_value in next, orig, nil do
+                copy[deepcopy(orig_key)] = deepcopy(orig_value)
+            end
+            setmetatable(copy, deepcopy(getmetatable(orig)))
+        else -- number, string, boolean, etc
+            copy = orig
+        end
+        return copy
+    end
+
+    function shallowcopy(orig)
+        local orig_type = type(orig)
+        local copy
+        if orig_type == 'table' then
+            copy = {}
+            for orig_key, orig_value in next, orig, nil do
+                copy[orig_key] = orig_value
+            end
+            setmetatable(copy, getmetatable(orig))
+        else -- number, string, boolean, etc
+            copy = orig
+        end
+        return copy
+    end
+
     local function to_str(obj)
         if obj == nil then
             return "nil"
@@ -752,6 +798,39 @@ do
             curr_rail = next[1]
         end
         return rails
+    end
+
+    local function is_segment_intersection_free(node)
+        local overlapping_rails = node.backmost_rail.get_rail_segment_overlaps()
+        local is_intersection_free = true
+        if #overlapping_rails > 0 then
+            local neighbours = {}
+            for _, neighbour in ipairs(get_neighbour_rails(node.backmost_rail, node.backmost_dir)) do
+                neighbours[make_entity_id(neighbour)] = true
+            end
+            for _, neighbour in ipairs(get_neighbour_rails(node.frontmost_rail, node.frontmost_dir)) do
+                neighbours[make_entity_id(neighbour)] = true
+            end
+            for _, overlapping_rail in ipairs(overlapping_rails) do
+                local is_directly_adjacent = false
+                for _, enddir in ipairs(ALL_RAIL_DIRECTIONS) do
+                    local rail, dir = overlapping_rail.get_rail_segment_end(enddir)
+                    for _, condir in ipairs(ALL_RAIL_CONNECTION_DIRECTIONS) do
+                        local other_neighbour = rail.get_connected_rail{rail_direction=dir, rail_connection_direction=condir}
+                        if other_neighbour ~= nil and neighbours[make_entity_id(other_neighbour)] then
+                            is_directly_adjacent = true
+                            goto next_rail_label
+                        end
+                    end
+                end
+                if not is_directly_adjacent then
+                    is_intersection_free = false
+                    break
+                end
+                ::next_rail_label::
+            end
+        end
+        return is_intersection_free
     end
 
     local function create_railway_segment_graph_dynamic(start_signals, area)
@@ -998,13 +1077,17 @@ do
             end
         end
 
+        for id, node in pairs(segment_graph) do
+            node.is_intersection_free = is_segment_intersection_free(node)
+        end
+
         return segment_graph
     end
 
-    local function find_segments_after_chain_signals(graph, segment_id)
-        local visited = {[segment_id]=true}
+    local function find_safe_spaces_after_chain_signals(graph, start_segment_id)
+        local visited = {[start_segment_id]=true}
 
-        local node = graph[segment_id]
+        local node = graph[start_segment_id]
         if node.end_signal ~= rail_signal_type.chain then
             return {}
         end
@@ -1013,64 +1096,75 @@ do
         local head = {}
         for _, next_id in ipairs(node.next) do
             visited[next_id] = true
-            table.insert(head, next_id)
+            table.insert(head, {
+                blocks = {{next_id}},
+                last_segment_id = next_id,
+                block_number_after_chain = 0
+            })
         end
 
         while true do
             local new_head = {}
             local added_new_segments = false
-            for _, s_id in ipairs(head) do
-                local node = graph[s_id]
+            for _, h in ipairs(head) do
+                local node = graph[h.last_segment_id]
+                local expand = h.block_number_after_chain == 0 or (h.block_number_after_chain == 1 and node.end_signal == rail_signal_type.none)
                 -- we must end up such that begin signal is a normal signal
-                if node.begin_signal ~= rail_signal_type.normal then
+                if expand and #node.next > 0 then
+                    local is_next_block = node.begin_signal ~= rail_signal_type.none
+                    local block_number_after_chain = h.block_number_after_chain
+                    if node.end_signal == rail_signal_type.normal then
+                        block_number_after_chain = block_number_after_chain + 1
+                    end
                     for _, next_id in ipairs(node.next) do
                         if not visited[next_id] then
                             visited[next_id] = true
-                            table.insert(new_head, next_id)
+                            local new_blocks = deepcopy(h.blocks)
+                            if is_next_block then
+                                table.insert(new_blocks, {next_id})
+                            else
+                                table.insert(new_blocks[#new_blocks], next_id)
+                            end
+                            table.insert(new_head, {
+                                blocks = new_blocks,
+                                last_segment_id = next_id,
+                                block_number_after_chain = block_number_after_chain
+                            })
                         end
                     end
                     added_new_segments = true
                 else
-                    table.insert(new_head, s_id)
+                    table.insert(new_head, h)
                 end
             end
 
             if added_new_segments then
                 head = new_head
             else
-                return head
+                break
             end
         end
-    end
 
-    function deepcopy(orig)
-        local orig_type = type(orig)
-        local copy
-        if orig_type == 'table' then
-            copy = {}
-            for orig_key, orig_value in next, orig, nil do
-                copy[deepcopy(orig_key)] = deepcopy(orig_value)
+        local result_spaces = {}
+        for _, space in ipairs(head) do
+            local final_block = space.blocks[#space.blocks]
+            if #space.blocks > 1 then
+                local candidate_block = space.blocks[#space.blocks - 1]
+                local is_candidate_block_safe = true
+                for _, segment_id in ipairs(candidate_block) do
+                    if not graph[segment_id].is_intersection_free then
+                        is_candidate_block_safe = false
+                        break
+                    end
+                end
+                if is_candidate_block_safe then
+                    final_block = table_concat(candidate_block, final_block)
+                end
             end
-            setmetatable(copy, deepcopy(getmetatable(orig)))
-        else -- number, string, boolean, etc
-            copy = orig
+            table.insert(result_spaces, final_block)
         end
-        return copy
-    end
 
-    function shallowcopy(orig)
-        local orig_type = type(orig)
-        local copy
-        if orig_type == 'table' then
-            copy = {}
-            for orig_key, orig_value in next, orig, nil do
-                copy[orig_key] = orig_value
-            end
-            setmetatable(copy, getmetatable(orig))
-        else -- number, string, boolean, etc
-            copy = orig
-        end
-        return copy
+        return result_spaces
     end
 
     -- NOTE: This function only considers connected rails. It does NOT handle rail intersections.
@@ -1150,145 +1244,6 @@ do
         return block
     end
 
-    local function expand_segment_to_block_forward(graph, segment_id)
-        local visited = {segment_id}
-        local queue = {segment_id}
-        local block = {}
-
-        -- First expand nodes by flood fill
-        while #queue > 0 do
-            local node_id = table.remove(queue, #queue)
-            local node = graph[node_id]
-            block[node_id] = shallowcopy(node)
-            if node.end_signal == rail_signal_type.none then
-                -- We handle the case where we can go forward in the block
-                for _, next_id in ipairs(node.next) do
-                    if not visited[next_id] then
-                        visited[next_id] = true
-                        table.insert(queue, next_id)
-                    end
-                end
-            else
-                -- We handle the case where the signal is on the merge of multiple tracks.
-                -- In this case the block is a union of segments that do not have a connection.
-                -- The only thing conencting them is the rail AFTER the signal.
-                -- So we just add all predecessors of a successors
-                -- (they should be all the same so no need to check all).
-                if #node.next > 0 then
-                    for _, next_prev_id in ipairs(graph[node.next[1]].prev) do
-                        if not visited[next_prev_id] then
-                            visited[next_prev_id] = true
-                            table.insert(queue, next_prev_id)
-                        end
-                    end
-                end
-            end
-        end
-
-        -- and then prune edges that are no longer relevant
-        for id, node in pairs(block) do
-            local new_next = {}
-            local new_prev = {}
-            for _, next_id in ipairs(node.next) do
-                if block[next_id] ~= nil then
-                    table.insert(new_next, next_id)
-                end
-            end
-            for _, prev_id in ipairs(node.prev) do
-                if block[prev_id] ~= nil then
-                    table.insert(new_prev, prev_id)
-                end
-            end
-            node.next = new_next
-            node.prev = new_prev
-        end
-
-        return block
-    end
-
-    local function expand_segments_to_blocks(graph, segment_ids)
-        local blocks = {}
-        for _, s_id in ipairs(segment_ids) do
-            table.insert(blocks, expand_segment_to_block(graph, s_id))
-        end
-        return blocks
-    end
-
-    local function expand_segments_to_blocks_forward(graph, segment_ids)
-        local blocks = {}
-        for _, s_id in ipairs(segment_ids) do
-            table.insert(blocks, expand_segment_to_block_forward(graph, s_id))
-        end
-        return blocks
-    end
-
-    local function get_smallest_segment_size(graph, segment_ids)
-        if #segment_ids == 0 then
-            return 0
-        end
-
-        local smallest = nil
-        for _, s_id in ipairs(segment_ids) do
-            local node = graph[s_id]
-            if smallest == nil or node.segment_length < smallest then
-                smallest = node.segment_length
-            end
-        end
-        return smallest
-    end
-
-    local function table_concat(t1, t2)
-        local t = {}
-        for _, a in ipairs(t1) do
-            table.insert(t, a)
-        end
-        for _, a in ipairs(t2) do
-            table.insert(t, a)
-        end
-        return t
-    end
-
-
-    local function find_min_size_forward_block_from_segment(block, start_segment_id)
-        -- use a DP algorithm that goes recursively into the block
-        -- and leaves the temporary computation results in the nodes itself
-
-        local node = block[start_segment_id]
-        if node.min_distance_to_sink ~= nil then
-            -- We use -1 as a special value designating "on the stack"
-            if node.min_distance_to_sink < 0 then
-                return node.min_distance_to_sink_forward_block, 0
-            end
-            return node.min_distance_to_sink_forward_block, node.min_distance_to_sink
-        end
-
-        node.min_distance_to_sink = -1
-        node.min_distance_to_sink_forward_block = {}
-        -- We use a local variable to prevent order from changing the results
-        local min_dist = -1
-        local min_fwd_block = {}
-        for _, next_id in ipairs(node.next) do
-            local next_forward_block, dist = find_min_size_forward_block_from_segment(block, next_id)
-            dist = dist + node.segment_length
-            if min_dist == -1 or dist < min_dist then
-                min_dist = dist
-                min_fwd_block = next_forward_block
-            end
-        end
-        node.min_distance_to_sink = min_dist
-        node.min_distance_to_sink_forward_block = table_concat({start_segment_id}, min_fwd_block)
-        if node.min_distance_to_sink == -1 then
-            node.min_distance_to_sink = node.segment_length
-        end
-
-        return node.min_distance_to_sink_forward_block, node.min_distance_to_sink
-    end
-
-    local function find_blocks_after_chain_signals(graph, id)
-        local segments_after_chains = find_segments_after_chain_signals(graph, id)
-        return expand_segments_to_blocks_forward(graph, segments_after_chains), segments_after_chains
-    end
-
     -- Since blocks flood fill there can never be two different blocks
     -- sharing a rail. So we just need to check if any of the blocks
     -- contains at least one of the rails from other block.
@@ -1329,31 +1284,15 @@ do
         return train_lengths
     end
 
-    local function node_ends_with_chain_signal(graph, node)
-        if node.end_signal == rail_signal_type.chain then
-            return true
-        end
-
-        for _, next_id in ipairs(node.next) do
-            local next_node = graph[next_id]
-
-            if next_node.begin_signal == rail_signal_type.chain then
-                return true
-            end
-        end
-
-        return false
-    end
-
     local function label_segments(graph, train_length)
         local interesting_nodes = {}
 
         for id, node in pairs(graph) do
-            if node_ends_with_chain_signal(graph, node) then
+            if node.end_signal == rail_signal_type.chain then
                 -- This one needs to be expanded fully
                 local block = expand_segment_to_block(graph, id)
                 -- These blocks will only be expanded forward
-                local blocks_after_chains, segments_after_chains = find_blocks_after_chain_signals(graph, id)
+                local safe_spaces_after_chain = find_safe_spaces_after_chain_signals(graph, id)
 
                 node.min_block_length_after_chain_signals = nil
                 if not node.is_interesting and not node.is_chain_uncertain then
@@ -1361,9 +1300,9 @@ do
                     table.insert(interesting_nodes, node)
                 end
 
-                for i, block_after_chain in ipairs(blocks_after_chains) do
+                for _, safe_space in ipairs(safe_spaces_after_chain) do
                     -- We can just check for containment here, it's enough.
-                    if block_a_contains_any_from_b(block, block_after_chain) then
+                    if block_a_contains_any_from_b(block, safe_space) then
                         -- before chain is the same block as after chain,
                         -- so the train will never go through there...
                         -- in this case we don't produce any other information
@@ -1376,27 +1315,34 @@ do
                 -- Now check for blocks that are too small, but only after we know that
                 -- the chain signal is not completely useless.
                 if not node.chain_selfwait then
-                    for i, block_after_chain in ipairs(blocks_after_chains) do
-                        local start_segment_id = segments_after_chains[i]
-                        local node_after_chain = graph[start_segment_id]
-                        local forward_block, size = find_min_size_forward_block_from_segment(block_after_chain, start_segment_id)
+                    for _, safe_space in ipairs(safe_spaces_after_chain) do
+                        local first_safe_segment = graph[safe_space[1]]
+
+                        local size = 0
+                        for _, segment_id in ipairs(safe_space) do
+                            size = size + graph[segment_id].segment_length
+                        end
+
                         if node.min_block_length_after_chain_signals == nil or size < node.min_block_length_after_chain_signals then
                             node.min_block_length_after_chain_signals = size
                         end
 
-                        node_after_chain.block_length = size
-                        if not node_after_chain.is_interesting then
-                            node_after_chain.is_interesting = true
-                            table.insert(interesting_nodes, node_after_chain)
+                        if first_safe_segment.block_length == nil or size < first_safe_segment.block_length then
+                            first_safe_segment.block_length = size
+                        end
+
+                        if not first_safe_segment.is_interesting then
+                            first_safe_segment.is_interesting = true
+                            table.insert(interesting_nodes, first_safe_segment)
                         end
 
                         -- issue warnings
                         if tiles_to_train_length(size) < train_length then
-                            node_after_chain.block_after_chain_too_small = true
-                            if node_after_chain.too_small_forward_blocks == nil then
-                                node_after_chain.too_small_forward_blocks = {}
+                            first_safe_segment.block_after_chain_too_small = true
+                            if first_safe_segment.too_small_forward_blocks == nil then
+                                first_safe_segment.too_small_forward_blocks = {}
                             end
-                            table.insert(node_after_chain.too_small_forward_blocks, forward_block)
+                            table.insert(first_safe_segment.too_small_forward_blocks, safe_space)
                         end
                     end
                 end
@@ -1441,22 +1387,23 @@ do
                 position = segment_overlay_position.front
             })
         end
-        if node.block_after_chain_too_small then
+
+        if node.block_after_chain_too_small or node.block_length then
             local text = string.format("%.2f", tiles_to_train_length(node.block_length))
-            local color = COLOR_BAD
+            local color = COLOR_GOOD
+            local alert_message = nil
+            if node.block_after_chain_too_small then
+                color = COLOR_BAD
+                alert_message = "Block too small"
+            end
+            if node.begin_signal == rail_signal_type.chain then
+                text = text .. " (fused)"
+            end
             table.insert(overlays, {
                 text = text,
                 color = color,
                 position = segment_overlay_position.back,
-                alert_message = "Block too small"
-            })
-        elseif node.block_length then
-            local text = string.format("%.2f", tiles_to_train_length(node.block_length))
-            local color = COLOR_GOOD
-            table.insert(overlays, {
-                text = text,
-                color = color,
-                position = segment_overlay_position.back
+                alert_message = alert_message
             })
         end
 
