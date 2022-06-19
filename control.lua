@@ -1597,41 +1597,43 @@ do
                                 orientation = node.backmost_rail_orient
                             end
 
-                            local rendering_id = rendering.draw_text{
-                                color = color,
-                                text = overlay.text,
-                                target = target,
-                                scale = 1.5,
-                                orientation = orientation,
-                                players = {player},
-                                alignment = "center",
-                                vertical_alignment = "middle",
-                                surface = player.surface,
-                                time_to_live = ttl
-                            }
+                            if target ~= nil then
+                                local rendering_id = rendering.draw_text{
+                                    color = color,
+                                    text = overlay.text,
+                                    target = target,
+                                    scale = 1.5,
+                                    orientation = orientation,
+                                    players = {player},
+                                    alignment = "center",
+                                    vertical_alignment = "middle",
+                                    surface = player.surface,
+                                    time_to_live = ttl
+                                }
 
-                            if data.highlight_rails and node.too_small_forward_blocks then
-                                for _, fb in ipairs(node.too_small_forward_blocks) do
-                                    for _, segment_id in ipairs(fb) do
-                                        if not highlighted_segments_ids[segment_id] then
-                                            highlighted_segments_ids[segment_id] = true
-                                            highlight_segment(player, segment_graph[segment_id], ttl, data.renderings)
+                                if data.highlight_rails and node.too_small_forward_blocks then
+                                    for _, fb in ipairs(node.too_small_forward_blocks) do
+                                        for _, segment_id in ipairs(fb) do
+                                            if not highlighted_segments_ids[segment_id] then
+                                                highlighted_segments_ids[segment_id] = true
+                                                highlight_segment(player, segment_graph[segment_id], ttl, data.renderings)
+                                            end
                                         end
                                     end
                                 end
-                            end
 
-                            if data.show_as_alerts and overlay.alert_message ~= nil then
-                                player.add_custom_alert(
-                                    node.backmost_rail,
-                                    {type="item", name="rail-chain-signal"},
-                                    overlay.alert_message,
-                                    true
-                                )
-                            end
+                                if data.show_as_alerts and overlay.alert_message ~= nil then
+                                    player.add_custom_alert(
+                                        node.backmost_rail,
+                                        {type="item", name="rail-chain-signal"},
+                                        overlay.alert_message,
+                                        true
+                                    )
+                                end
 
-                            if ttl == nil then
-                                table.insert(data.renderings, rendering_id)
+                                if ttl == nil then
+                                    table.insert(data.renderings, rendering_id)
+                                end
                             end
                         end
                     end
