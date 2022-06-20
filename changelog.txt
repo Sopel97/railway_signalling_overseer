@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version 1.1.12
+  Fixes:
+    - Fix fusion logic for blocks like start of the stacker.
+    - Fix segments sometimes being incorrectly marked as having uncertain chain signals.
+    - Fix incorrect block determination when searching for space after chain signals.
+---------------------------------------------------------------------------------------------------
 Version 1.1.11
   Features:
     - Fuse blocks after a chain signal for length computation if there's no actual intersection.
