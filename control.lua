@@ -274,6 +274,7 @@ do
     }
 
     local COLOR_GOOD = {0, 1, 0}
+    local COLOR_SUGGESTION = {1, 1, 0}
     local COLOR_BAD = {1, 0, 0}
 
     --------- GUI HANDLING
@@ -293,6 +294,7 @@ do
             train_length = old_data.train_length or 6,
             update_period = old_data.update_period or 60,
             enabled = old_data.enabled or true,
+            suggestions_enabled = old_data.suggestions_enabled or false,
             only_show_problems = old_data.only_show_problems or false,
             renderings = old_data.renderings or {},
             initial_rail_scan_range = old_data.initial_rail_scan_range or DEFAULT_RAIL_SCAN_RANGE,
@@ -417,6 +419,13 @@ do
                 caption = "Highlight rails",
                 name = "railway_signalling_overseer_highlight_rails_checkbox",
                 state = data.highlight_rails
+            }
+
+            flow.add{
+                type = "checkbox",
+                caption = "Enable suggestions",
+                name = "railway_signalling_overseer_enable_suggestions_checkbox",
+                state = data.suggestions_enabled
             }
 
             flow.add{
@@ -1282,7 +1291,7 @@ do
         return train_lengths
     end
 
-    local function label_segments(graph, train_length)
+    local function label_segments(graph, train_length, collect_suggestions)
         local interesting_nodes = {}
 
         for id, node in pairs(graph) do
@@ -1349,6 +1358,24 @@ do
                     node.no_destination = true
                 end
             end
+
+            if collect_suggestions and node.begin_signal == rail_signal_type.normal then
+                local block = expand_segment_to_block(graph, id)
+                local is_intersection_free = true
+                for _, segment in pairs(block) do
+                    if not segment.is_intersection_free then
+                        is_intersection_free = false
+                        break
+                    end
+                end
+                if not is_intersection_free then
+                    node.suggestion_start_with_chain = true
+                    if not node.is_interesting then
+                        node.is_interesting = true
+                        table.insert(interesting_nodes, node)
+                    end
+                end
+            end
         end
 
         return interesting_nodes
@@ -1402,6 +1429,14 @@ do
                 color = color,
                 position = segment_overlay_position.back,
                 alert_message = alert_message
+            })
+        end
+
+        if node.suggestion_start_with_chain then
+            table.insert(overlays, {
+                text = "CHAIN?",
+                color = COLOR_SUGGESTION,
+                position = segment_overlay_position.back
             })
         end
 
@@ -1525,7 +1560,7 @@ do
             if segment_graph ~= nil then
                 clear_renderings(player)
 
-                local interesting_nodes = label_segments(segment_graph, train_length)
+                local interesting_nodes = label_segments(segment_graph, train_length, data.suggestions_enabled)
                 for _, node in ipairs(interesting_nodes) do
                     local overlays = get_segment_overlays(node, train_length)
                     for _, overlay in ipairs(overlays) do
@@ -1650,6 +1685,10 @@ do
             local player = game.players[event.player_index]
             local data = global.railway_signalling_overseer_data[player.index]
             data.highlight_rails = event.element.state
+        elseif name == "railway_signalling_overseer_enable_suggestions_checkbox" then
+            local player = game.players[event.player_index]
+            local data = global.railway_signalling_overseer_data[player.index]
+            data.suggestions_enabled = event.element.state
         end
     end)
 
