@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version 1.1.11
+  Features:
+    - Fuse blocks after a chain signal for length computation if there's no actual intersection.
+    - Optional suggestions for (missing) chain signal placement.
+  Fixes:
+    - Highlighting sometimes not working for single-segment blocks.
+---------------------------------------------------------------------------------------------------
 Version 1.1.10
   Fixes:
     - Fixed crash when quickly rebuilding the rail.
