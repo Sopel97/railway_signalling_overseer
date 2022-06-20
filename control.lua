@@ -1155,11 +1155,15 @@ do
         local result_spaces = {}
         for _, space in ipairs(head) do
             local final_block = space.blocks[#space.blocks]
-            if #space.blocks > 1 then
+            -- For the block to be fusable it must have exactly one output
+            -- Otherwise we have a situation like at the start of a stacker for example,
+            -- where something could block other outputs.
+            if #head == 1 and #space.blocks > 1 then
                 local candidate_block = space.blocks[#space.blocks - 1]
                 local is_candidate_block_safe = true
                 for _, segment_id in ipairs(candidate_block) do
-                    if not graph[segment_id].is_intersection_free then
+                    local is_fusable = graph[segment_id].is_intersection_free
+                    if not is_fusable then
                         is_candidate_block_safe = false
                         break
                     end
