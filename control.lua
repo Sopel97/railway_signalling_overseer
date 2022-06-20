@@ -1063,7 +1063,7 @@ do
                                 forward_distance_from_chain = forward_distance_from_chain,
                                 -- When we expand backwards some chains won't get full coverage
                                 -- We want to mark those as uncertain so that they are not rendered later
-                                is_chain_uncertain = not is_inside_area,
+                                is_chain_uncertain = not box_contains_point(area, segment.frontmost_rail.position),
                                 growth_direction = growth_direction
                             }
 
