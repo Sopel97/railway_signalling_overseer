@@ -1118,7 +1118,7 @@ do
                 local expand = h.block_number_after_chain == 0 or (h.block_number_after_chain == 1 and node.end_signal == rail_signal_type.none)
                 -- we must end up such that begin signal is a normal signal
                 if expand and #node.next > 0 then
-                    local is_next_block = node.begin_signal ~= rail_signal_type.none
+                    local is_next_block = node.end_signal ~= rail_signal_type.none
                     local block_number_after_chain = h.block_number_after_chain
                     if node.end_signal == rail_signal_type.normal then
                         block_number_after_chain = block_number_after_chain + 1
