@@ -5,6 +5,7 @@ This is a mod for factorio that checks the visible railway in realtime and check
 - when a chain signal has no destination
 - when a train would wait on chain signal indefinitely due to the train being on the same block it is waiting for clear up
 - when any block a train on a chain signal could wait for to clear has insufficient length
+- when a normal signal should likely be a chain signal
 
 **NOTE: The mod works only with single directional rails.** If there are rails that function in both directions the result is undefined. This behaviour will likely not change in the future.
 
