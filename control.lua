@@ -840,6 +840,19 @@ do
         return is_intersection_free
     end
 
+    local function table_insert_if_unique(tbl, v)
+        local unique = true
+        for _, vv in ipairs(tbl) do
+            if v == vv then
+                unique = false
+                break
+            end
+        end
+        if unique then
+            table.insert(tbl, v)
+        end
+    end
+
     local function create_railway_segment_graph_dynamic(start_signals, area)
         local segment_graph = {}
 
@@ -982,7 +995,7 @@ do
                                 begin_signal = begin_signal,
                                 end_signal = end_signal,
                                 next = {},
-                                prev = {},
+                                prev = {id},
                                 segment_length = segment_length,
                                 is_inside_area = is_inside_area,
                                 forward_distance_from_chain = forward_distance_from_chain,
@@ -992,7 +1005,7 @@ do
 
                             segment_graph[segment_id] = new_node
                             table.insert(queues[forward_distance_from_chain], segment_id)
-                            table.insert(node.next, segment_id)
+                            table_insert_if_unique(node.next, segment_id)
                         end
                     else
                         -- If it's already there then just make sure everything is consitent
@@ -1004,7 +1017,7 @@ do
                         if node.end_signal == rail_signal_type.none then
                             node.end_signal = new_node.begin_signal
                         end
-                        table.insert(node.next, segment_id)
+                        table_insert_if_unique(node.next, segment_id)
                     end
                 end
             end
@@ -1056,7 +1069,7 @@ do
                                 backmost_dir = segment.backmost_dir,
                                 begin_signal = begin_signal,
                                 end_signal = end_signal,
-                                next = {},
+                                next = {id},
                                 prev = {},
                                 segment_length = segment_length,
                                 is_inside_area = is_inside_area,
@@ -1069,7 +1082,7 @@ do
 
                             segment_graph[segment_id] = new_node
                             table.insert(queues[forward_distance_from_chain], segment_id)
-                            table.insert(node.prev, segment_id)
+                            table_insert_if_unique(node.prev, segment_id)
                         end
                     else
                         if new_node.end_signal == rail_signal_type.none then
@@ -1078,7 +1091,7 @@ do
                         if node.begin_signal == rail_signal_type.none then
                             node.begin_signal = new_node.end_signal
                         end
-                        table.insert(node.prev, segment_id)
+                        table_insert_if_unique(node.prev, segment_id)
                     end
                 end
             end
@@ -1109,6 +1122,8 @@ do
                 block_number_after_chain = 0
             })
         end
+
+        local spaces = {}
 
         while true do
             local new_head = {}
@@ -1141,7 +1156,7 @@ do
                     end
                     added_new_segments = true
                 else
-                    table.insert(new_head, h)
+                    table.insert(spaces, h)
                 end
             end
 
@@ -1152,13 +1167,21 @@ do
             end
         end
 
-        local result_spaces = {}
         for _, space in ipairs(head) do
+            -- Don't include spaces that are for example in a loop full of chain singnals
+            -- (ended on visited=true before a normal signal)
+            if head.block_number_after_chain == 1 then
+                table.insert(spaces, head)
+            end
+        end
+
+        local result_spaces = {}
+        for _, space in ipairs(spaces) do
             local final_block = space.blocks[#space.blocks]
             -- For the block to be fusable it must have exactly one output
             -- Otherwise we have a situation like at the start of a stacker for example,
             -- where something could block other outputs.
-            if #head == 1 and #space.blocks > 1 then
+            if #spaces == 1 and #space.blocks > 1 then
                 local candidate_block = space.blocks[#space.blocks - 1]
                 local is_candidate_block_safe = true
                 for _, segment_id in ipairs(candidate_block) do
