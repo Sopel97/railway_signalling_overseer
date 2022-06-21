@@ -1,6 +1,10 @@
 ---------------------------------------------------------------------------------------------------
 Version 1.1.12
   Fixes:
+    - Fix occasional graph connectivity inconsistencies.
+---------------------------------------------------------------------------------------------------
+Version 1.1.12
+  Fixes:
     - Fix fusion logic for blocks like start of the stacker.
     - Fix segments sometimes being incorrectly marked as having uncertain chain signals.
     - Fix incorrect block determination when searching for space after chain signals.
