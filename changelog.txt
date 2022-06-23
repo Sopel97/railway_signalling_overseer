@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version 1.1.14
+  Features:
+    - Add a special rail-signal entity that informs the script to assume it's correct.
+    - Add a selection tool (under shortcut) to mark signals as correct.
+---------------------------------------------------------------------------------------------------
 Version 1.1.13
   Fixes:
     - Fix occasional graph connectivity inconsistencies.
