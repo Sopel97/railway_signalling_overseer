@@ -26,7 +26,8 @@ do
     local rail_signal_type = {
         none = 0,
         normal = 1,
-        chain = 2
+        chain = 2,
+        normal_correct = 3
     }
 
     local partial_update_type = {
@@ -633,6 +634,8 @@ do
     local function get_rail_signal_type(signal)
         if signal == nil then
             return rail_signal_type.none
+        elseif signal.name == "correct-rail-signal" then
+            return rail_signal_type.normal_correct
         elseif signal.type == "rail-signal" then
             return rail_signal_type.normal
         elseif signal.type == "rail-chain-signal" then
@@ -890,9 +893,9 @@ do
                             forward_distance_from_chain = 0
                         elseif begin_signal == rail_signal_type.chain then
                             forward_distance_from_chain = 1
-                        elseif begin_signal == rail_signal_type.normal then
+                        elseif begin_signal == rail_signal_type.normal or begin_signal == rail_signal_type.normal_correct then
                             forward_distance_from_chain = 2 -- at least 2, but we may potentially need that block so we want to explore it fully
-                        elseif end_signal == rail_signal_type.normal then
+                        elseif end_signal == rail_signal_type.normal or end_signal == rail_signal_type.normal_correct then
                             forward_distance_from_chain = 1
                         end
 
@@ -1119,7 +1122,8 @@ do
             table.insert(head, {
                 blocks = {{next_id}},
                 last_segment_id = next_id,
-                block_number_after_chain = 0
+                block_number_after_chain = 0,
+                assume_correct = false
             })
         end
 
@@ -1131,11 +1135,12 @@ do
             for _, h in ipairs(head) do
                 local node = graph[h.last_segment_id]
                 local expand = h.block_number_after_chain == 0 or (h.block_number_after_chain == 1 and node.end_signal == rail_signal_type.none)
+                local assume_correct = h.assume_correct or node.begin_signal == rail_signal_type.normal_correct or node.end_signal == rail_signal_type.normal_correct
                 -- we must end up such that begin signal is a normal signal
                 if expand and #node.next > 0 then
                     local is_next_block = node.end_signal ~= rail_signal_type.none
                     local block_number_after_chain = h.block_number_after_chain
-                    if node.end_signal == rail_signal_type.normal then
+                    if node.end_signal == rail_signal_type.normal or node.end_signal == rail_signal_type.normal_correct then
                         block_number_after_chain = block_number_after_chain + 1
                     end
                     for _, next_id in ipairs(node.next) do
@@ -1150,12 +1155,13 @@ do
                             table.insert(new_head, {
                                 blocks = new_blocks,
                                 last_segment_id = next_id,
-                                block_number_after_chain = block_number_after_chain
+                                block_number_after_chain = block_number_after_chain,
+                                assume_correct = assume_correct
                             })
                         end
                     end
                     added_new_segments = true
-                else
+                elseif not assume_correct then
                     table.insert(spaces, h)
                 end
             end
@@ -1327,6 +1333,7 @@ do
                 local block = expand_segment_to_block(graph, id)
                 -- These blocks will only be expanded forward
                 local safe_spaces_after_chain = find_safe_spaces_after_chain_signals(graph, id)
+                local assume_correct = true
 
                 node.min_block_length_after_chain_signals = nil
                 if not node.is_interesting and not node.is_chain_uncertain then
@@ -1336,7 +1343,7 @@ do
 
                 for _, safe_space in ipairs(safe_spaces_after_chain) do
                     -- We can just check for containment here, it's enough.
-                    if block_a_contains_any_from_b(block, safe_space) then
+                    if not safe_space.assume_correct and block_a_contains_any_from_b(block, safe_space) then
                         -- before chain is the same block as after chain,
                         -- so the train will never go through there...
                         -- in this case we don't produce any other information
@@ -1350,38 +1357,42 @@ do
                 -- the chain signal is not completely useless.
                 if not node.chain_selfwait then
                     for _, safe_space in ipairs(safe_spaces_after_chain) do
-                        local first_safe_segment = graph[safe_space[1]]
+                        if not safe_space.assume_correct then
+                            local first_safe_segment = graph[safe_space[1]]
 
-                        local size = 0
-                        for _, segment_id in ipairs(safe_space) do
-                            size = size + graph[segment_id].segment_length
-                        end
-
-                        if node.min_block_length_after_chain_signals == nil or size < node.min_block_length_after_chain_signals then
-                            node.min_block_length_after_chain_signals = size
-                        end
-
-                        if first_safe_segment.block_length == nil or size < first_safe_segment.block_length then
-                            first_safe_segment.block_length = size
-                        end
-
-                        if not first_safe_segment.is_interesting then
-                            first_safe_segment.is_interesting = true
-                            table.insert(interesting_nodes, first_safe_segment)
-                        end
-
-                        -- issue warnings
-                        if tiles_to_train_length(size) < train_length then
-                            first_safe_segment.block_after_chain_too_small = true
-                            if first_safe_segment.too_small_forward_blocks == nil then
-                                first_safe_segment.too_small_forward_blocks = {}
+                            local size = 0
+                            for _, segment_id in ipairs(safe_space) do
+                                size = size + graph[segment_id].segment_length
                             end
-                            table.insert(first_safe_segment.too_small_forward_blocks, safe_space)
+
+                            if node.min_block_length_after_chain_signals == nil or size < node.min_block_length_after_chain_signals then
+                                node.min_block_length_after_chain_signals = size
+                            end
+
+                            if first_safe_segment.block_length == nil or size < first_safe_segment.block_length then
+                                first_safe_segment.block_length = size
+                            end
+
+                            if not first_safe_segment.is_interesting then
+                                first_safe_segment.is_interesting = true
+                                table.insert(interesting_nodes, first_safe_segment)
+                            end
+
+                            -- issue warnings
+                            if tiles_to_train_length(size) < train_length then
+                                first_safe_segment.block_after_chain_too_small = true
+                                if first_safe_segment.too_small_forward_blocks == nil then
+                                    first_safe_segment.too_small_forward_blocks = {}
+                                end
+                                table.insert(first_safe_segment.too_small_forward_blocks, safe_space)
+                            end
+
+                            assume_correct = false
                         end
                     end
                 end
 
-                if not node.min_block_length_after_chain_signals and not node.chain_selfwait then
+                if not assume_correct and not node.min_block_length_after_chain_signals and not node.chain_selfwait then
                     node.no_destination = true
                 end
             end
@@ -1651,6 +1662,24 @@ do
         end
     end
 
+    local function assume_rail_signals_correct(event)
+        local rail_signals = event.entities
+        for _, rail_signal in ipairs(rail_signals) do
+            if rail_signal.health then
+                -- if not ghost
+                rail_signal.surface.create_entity{
+                    name = "correct-rail-signal",
+                    position = rail_signal.position,
+                    direction = rail_signal.direction,
+                    force = rail_signal.force,
+                    spill = false,
+                    target = rail_signal,
+                    fast_replace = true
+                }
+            end
+        end
+    end
+
     script.on_event(defines.events.on_tick, function(event)
         local tick = event.tick
         for _, player in pairs(game.players) do
@@ -1745,6 +1774,12 @@ do
 
             local label = get_config_gui_element(player, "railway_signalling_overseer_initial_scan_range_label")
             label.caption = "Initial scan range (tiles): " .. tostring(new_value)
+        end
+    end)
+
+    script.on_event({ defines.events.on_player_selected_area }, function(e)
+        if e.item == "railway_signalling_overseer_assume_correct_tool" then
+            assume_rail_signals_correct(e)
         end
     end)
 
