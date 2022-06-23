@@ -1,4 +1,8 @@
 ---------------------------------------------------------------------------------------------------
+Version 1.1.15
+  Improvements:
+    - Replace correct-rail-signal in created blueprints with rail-signal with an appropriate tag. Allows removing the mod without compromising blueprints.
+---------------------------------------------------------------------------------------------------
 Version 1.1.14
   Features:
     - Add a special rail-signal entity that informs the script to assume it's correct.
