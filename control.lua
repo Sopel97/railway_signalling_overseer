@@ -1790,18 +1790,20 @@ do
     script.on_event({ defines.events.on_player_setup_blueprint }, function(e)
         local player = game.players[e.player_index]
         local blueprint = player.blueprint_to_setup
-        local blueprint_entities = blueprint.get_blueprint_entities()
-        for _, entity in pairs(blueprint_entities) do
-            if entity.name == "correct-rail-signal" then
-                entity.name = "rail-signal"
-                if entity.tags ~= nil then
-                    entity.tags["correct"] = true
-                else
-                    entity.tags = {correct = true}
+        if blueprint ~= nil and blueprint.valid_for_read then
+            local blueprint_entities = blueprint.get_blueprint_entities()
+            for _, entity in pairs(blueprint_entities) do
+                if entity.name == "correct-rail-signal" then
+                    entity.name = "rail-signal"
+                    if entity.tags ~= nil then
+                        entity.tags["correct"] = true
+                    else
+                        entity.tags = {correct = true}
+                    end
                 end
             end
+            blueprint.set_blueprint_entities(blueprint_entities)
         end
-        blueprint.set_blueprint_entities(blueprint_entities)
     end)
 
     local function on_entity_built(entity, tags)
