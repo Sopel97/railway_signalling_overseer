@@ -1801,7 +1801,7 @@ do
     end)
 
     local function on_entity_built(entity, tags)
-        if entity.type == "rail-signal" and tags and tags["correct"] then
+        if entity.valid and entity.name == "rail-signal" and tags and tags["correct"] then
             replace_with_correct_rail_signal(entity)
         end
     end
