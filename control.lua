@@ -1794,7 +1794,11 @@ do
         for _, entity in pairs(blueprint_entities) do
             if entity.name == "correct-rail-signal" then
                 entity.name = "rail-signal"
-                entity.tags = {correct = true}
+                if entity.tags ~= nil then
+                    entity.tags["correct"] = true
+                else
+                    entity.tags = {correct = true}
+                end
             end
         end
         blueprint.set_blueprint_entities(blueprint_entities)
