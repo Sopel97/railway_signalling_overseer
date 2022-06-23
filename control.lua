@@ -1662,20 +1662,24 @@ do
         end
     end
 
+    local function replace_with_correct_rail_signal(entity)
+        entity.surface.create_entity{
+            name = "correct-rail-signal",
+            position = entity.position,
+            direction = entity.direction,
+            force = entity.force,
+            spill = false,
+            target = entity,
+            fast_replace = true
+        }
+    end
+
     local function assume_rail_signals_correct(event)
         local rail_signals = event.entities
         for _, rail_signal in ipairs(rail_signals) do
             if rail_signal.health then
                 -- if not ghost
-                rail_signal.surface.create_entity{
-                    name = "correct-rail-signal",
-                    position = rail_signal.position,
-                    direction = rail_signal.direction,
-                    force = rail_signal.force,
-                    spill = false,
-                    target = rail_signal,
-                    fast_replace = true
-                }
+                replace_with_correct_rail_signal(rail_signal)
             end
         end
     end
@@ -1782,6 +1786,37 @@ do
             assume_rail_signals_correct(e)
         end
     end)
+
+    script.on_event({ defines.events.on_player_setup_blueprint }, function(e)
+        local player = game.players[e.player_index]
+        local blueprint = player.blueprint_to_setup
+        local blueprint_entities = blueprint.get_blueprint_entities()
+        for _, entity in pairs(blueprint_entities) do
+            if entity.name == "correct-rail-signal" then
+                entity.name = "rail-signal"
+                entity.tags = {correct = true}
+            end
+        end
+        blueprint.set_blueprint_entities(blueprint_entities)
+    end)
+
+    local function on_entity_built(entity, tags)
+        if entity.type == "rail-signal" and tags and tags["correct"] then
+            replace_with_correct_rail_signal(entity)
+        end
+    end
+
+    script.on_event(defines.events.on_built_entity, function(e)
+        on_entity_built(e.created_entity, e.tags)
+    end, {{filter = "rail-signal", name = "rail-signal"}})
+
+    script.on_event(defines.events.script_raised_revive, function(e)
+        on_entity_built(e.entity, e.tags)
+    end, {{filter = "rail-signal", name = "rail-signal"}})
+
+    script.on_event(defines.events.on_robot_built_entity, function(e)
+        on_entity_built(e.created_entity, e.tags)
+    end, {{filter = "rail-signal", name = "rail-signal"}})
 
     script.on_init(function()
         reinitialize()
