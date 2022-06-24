@@ -1803,6 +1803,13 @@ do
                 end
             end
             blueprint.set_blueprint_entities(blueprint_entities)
+        else
+            for _, entity in pairs(e.mapping.get()) do
+                if entity.name == "correct-rail-signal" then
+                    player.print("Hey, this blueprint is now fucked because of a (almost 2 years old) bug in factorio (https://forums.factorio.com/88100). There is no workaround. You have to make the blueprint from scratch if you want it to preserve everything correctly.")
+                    break
+                end
+            end
         end
     end)
 
