@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version 1.1.16
+  Fixes:
+    - Fix crashes related to user selections of some kind.
+    - Inform the user of the bug in factorio https://forums.factorio.com/88100 when applicable.
+---------------------------------------------------------------------------------------------------
 Version 1.1.15
   Improvements:
     - Replace correct-rail-signal in created blueprints with rail-signal with an appropriate tag. Allows removing the mod without compromising blueprints.
