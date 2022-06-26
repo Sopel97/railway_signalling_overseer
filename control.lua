@@ -1131,7 +1131,6 @@ do
 
         while true do
             local new_head = {}
-            local added_new_segments = false
             for _, h in ipairs(head) do
                 local node = graph[h.last_segment_id]
                 local expand = h.block_number_after_chain == 0 or (h.block_number_after_chain == 1 and node.end_signal == rail_signal_type.none)
@@ -1164,13 +1163,12 @@ do
                             })
                         end
                     end
-                    added_new_segments = true
                 elseif not assume_correct then
                     table.insert(spaces, h)
                 end
             end
 
-            if added_new_segments then
+            if #new_head > 0 then
                 head = new_head
             else
                 break
