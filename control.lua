@@ -979,8 +979,8 @@ do
                         -- see if we actually want to expand there
                         if forward_distance_from_chain <= 2 then
                             local segment_length = segment.backmost_rail.get_rail_segment_length()
-                            local is_inside_area =     box_contains_point(area, segment.backmost_rail.position)
-                                                   and box_contains_point(area, segment.frontmost_rail.position)
+                            local is_inside_area =    box_contains_point(area, segment.backmost_rail.position)
+                                                   or box_contains_point(area, segment.frontmost_rail.position)
 
                             local growth_direction = graph_node_growth_direction.both
                             if not is_inside_area then
@@ -1057,8 +1057,8 @@ do
                         -- see if we actually want to expand there
                         if forward_distance_from_chain >= -1 then
                             local segment_length = segment.backmost_rail.get_rail_segment_length()
-                            local is_inside_area =     box_contains_point(area, segment.backmost_rail.position)
-                                                   and box_contains_point(area, segment.frontmost_rail.position)
+                            local is_inside_area =    box_contains_point(area, segment.backmost_rail.position)
+                                                   or box_contains_point(area, segment.frontmost_rail.position)
 
                             local growth_direction = graph_node_growth_direction.both
                             if not is_inside_area then
@@ -1097,6 +1097,17 @@ do
                         table_insert_if_unique(node.prev, segment_id)
                     end
                 end
+            end
+        end
+
+        for id, node in pairs(segment_graph) do
+            for _, next_id in ipairs(node.next) do
+                local next = segment_graph[next_id]
+                table_insert_if_unique(next.prev, id)
+            end
+            for _, prev_id in ipairs(node.prev) do
+                local prev = segment_graph[prev_id]
+                table_insert_if_unique(prev.next, id)
             end
         end
 
@@ -1193,7 +1204,7 @@ do
                 local candidate_block = space.blocks[#space.blocks - 1]
                 local is_candidate_block_safe = true
                 for _, segment_id in ipairs(candidate_block) do
-                    local is_fusable = graph[segment_id].is_intersection_free
+                    local is_fusable = graph[segment_id].is_intersection_free and not graph[segment_id].is_chain_uncertain
                     if not is_fusable then
                         is_candidate_block_safe = false
                         break
