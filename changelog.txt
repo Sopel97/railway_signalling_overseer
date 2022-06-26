@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version 1.1.17
+  Fixes:
+    - Rectify correctness and consistency of partial expansion.
+  Improvements:
+    - Improve expansion logic recurrence condition
+    - Use deepcopy only when necessary
+    - Slight low-level optimizations
+---------------------------------------------------------------------------------------------------
 Version 1.1.16
   Fixes:
     - Fix crashes related to user selections of some kind.
