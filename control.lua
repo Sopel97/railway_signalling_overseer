@@ -1801,20 +1801,30 @@ do
     script.on_event({ defines.events.on_player_setup_blueprint }, function(e)
         local player = game.players[e.player_index]
         local blueprint = player.blueprint_to_setup
-        if blueprint ~= nil and blueprint.valid_for_read then
+        if blueprint == nil or not blueprint.valid_for_read then
+            blueprint = player.cursor_stack
+        end
+
+        local success = false
+        if blueprint ~= nil and blueprint.valid and blueprint.valid_for_read and blueprint.is_blueprint then
             local blueprint_entities = blueprint.get_blueprint_entities()
-            for _, entity in pairs(blueprint_entities) do
-                if entity.name == "correct-rail-signal" then
-                    entity.name = "rail-signal"
-                    if entity.tags ~= nil then
-                        entity.tags["correct"] = true
-                    else
-                        entity.tags = {correct = true}
+            if blueprint_entities ~= nil then
+                for _, entity in pairs(blueprint_entities) do
+                    if entity.name == "correct-rail-signal" then
+                        entity.name = "rail-signal"
+                        if entity.tags ~= nil then
+                            entity.tags["correct"] = true
+                        else
+                            entity.tags = {correct = true}
+                        end
                     end
                 end
+                blueprint.set_blueprint_entities(blueprint_entities)
+                success = true
             end
-            blueprint.set_blueprint_entities(blueprint_entities)
-        else
+        end
+
+        if not success then
             for _, entity in pairs(e.mapping.get()) do
                 if entity.name == "correct-rail-signal" then
                     player.print("Hey, this blueprint is now fucked because of a (almost 2 years old) bug in factorio (https://forums.factorio.com/88100). There is no workaround. You have to make the blueprint from scratch if you want it to preserve everything correctly.")
