@@ -1143,10 +1143,14 @@ do
                     if node.end_signal == rail_signal_type.normal or node.end_signal == rail_signal_type.normal_correct then
                         block_number_after_chain = block_number_after_chain + 1
                     end
-                    for _, next_id in ipairs(node.next) do
+                    for i, next_id in ipairs(node.next) do
                         if not visited[next_id] then
                             visited[next_id] = true
-                            local new_blocks = deepcopy(h.blocks)
+                            local new_blocks = h.blocks
+                            -- we don't need to copy the last element, because it would get lost anyway
+                            if i ~= #node.next then
+                                new_blocks = deepcopy(h.blocks)
+                            end
                             if is_next_block then
                                 table.insert(new_blocks, {next_id})
                             else
