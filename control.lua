@@ -627,7 +627,7 @@ do
 
     local function insert_if_not_nil(tbl, v)
         if v ~= nil then
-            table.insert(tbl, v)
+            tbl[#tbl + 1] = v
         end
     end
 
@@ -768,7 +768,6 @@ do
             end
 
             local rail = segment.frontmost_rail
-            local infer_
             local frontmost_rail = nil
             local backmost_rail = nil
             local frontmost_dir = nil
@@ -845,14 +844,15 @@ do
 
     local function table_insert_if_unique(tbl, v)
         local unique = true
-        for _, vv in ipairs(tbl) do
+        for i = 1, #tbl do
+            local vv = tbl[i]
             if v == vv then
                 unique = false
                 break
             end
         end
         if unique then
-            table.insert(tbl, v)
+            tbl[#tbl + 1] = v
         end
     end
 
@@ -1102,16 +1102,12 @@ do
 
         for id, node in pairs(segment_graph) do
             for _, next_id in ipairs(node.next) do
-                local next = segment_graph[next_id]
-                table_insert_if_unique(next.prev, id)
+                table_insert_if_unique(segment_graph[next_id].prev, id)
             end
             for _, prev_id in ipairs(node.prev) do
-                local prev = segment_graph[prev_id]
-                table_insert_if_unique(prev.next, id)
+                table_insert_if_unique(segment_graph[prev_id].next, id)
             end
-        end
 
-        for id, node in pairs(segment_graph) do
             node.is_intersection_free = is_segment_intersection_free(node)
         end
 
@@ -1147,18 +1143,19 @@ do
                 local expand = h.block_number_after_chain == 0 or (h.block_number_after_chain == 1 and node.end_signal == rail_signal_type.none)
                 local assume_correct = h.assume_correct or node.begin_signal == rail_signal_type.normal_correct or node.end_signal == rail_signal_type.normal_correct
                 -- we must end up such that begin signal is a normal signal
-                if expand and #node.next > 0 then
+                local next = node.next
+                if expand and #next > 0 then
                     local is_next_block = node.end_signal ~= rail_signal_type.none
                     local block_number_after_chain = h.block_number_after_chain
                     if node.end_signal == rail_signal_type.normal or node.end_signal == rail_signal_type.normal_correct then
                         block_number_after_chain = block_number_after_chain + 1
                     end
-                    for i, next_id in ipairs(node.next) do
+                    for i, next_id in ipairs(next) do
                         if not visited[next_id] then
                             visited[next_id] = true
                             local new_blocks = h.blocks
                             -- we don't need to copy the last element, because it would get lost anyway
-                            if i ~= #node.next then
+                            if i ~= #next then
                                 new_blocks = deepcopy(h.blocks)
                             end
                             if is_next_block then
@@ -1204,7 +1201,8 @@ do
                 local candidate_block = space.blocks[#space.blocks - 1]
                 local is_candidate_block_safe = true
                 for _, segment_id in ipairs(candidate_block) do
-                    local is_fusable = graph[segment_id].is_intersection_free and not graph[segment_id].is_chain_uncertain
+                    local segment = graph[segment_id]
+                    local is_fusable = segment.is_intersection_free and not segment.is_chain_uncertain
                     if not is_fusable then
                         is_candidate_block_safe = false
                         break
