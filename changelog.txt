@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version 1.1.18
+  Features:
+    - Add unassume functionality (alt selection)
+  Improvements:
+    - Replace correct-rail-signal entity with a tag stored in global. No more additional entities.
+    - Partial workaround for https://forums.factorio.com/88100. Copy/cut should work correctly now.
+  Fixes:
+    - Fix config not saving through version changes.
+---------------------------------------------------------------------------------------------------
 Version 1.1.17
   Fixes:
     - Rectify correctness and consistency of partial expansion.

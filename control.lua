@@ -285,6 +285,10 @@ do
             global.railway_signalling_overseer_data = {}
         end
 
+        if global.railway_signalling_overseer_data.correct_signals == nil then
+            global.railway_signalling_overseer_data.correct_signals = {}
+        end
+
         if global.railway_signalling_overseer_data[player.index] == nil then
             global.railway_signalling_overseer_data[player.index] = {}
         end
@@ -530,6 +534,30 @@ do
 
     --------- LOGIC
 
+    local function mark_signal_correct(entity)
+        local correct_signals = global.railway_signalling_overseer_data.correct_signals
+        local entity_id = entity.unit_number
+        correct_signals[entity_id] = true
+        script.register_on_entity_destroyed(entity)
+    end
+
+    local function unmark_signal_correct(entity)
+        local correct_signals = global.railway_signalling_overseer_data.correct_signals
+        local entity_id = entity.unit_number
+        correct_signals[entity_id] = nil
+    end
+
+    local function unmark_signal_correct_by_unit_number(unit_number)
+        local correct_signals = global.railway_signalling_overseer_data.correct_signals
+        correct_signals[unit_number] = nil
+    end
+
+    local function is_signal_marked_correct(entity)
+        local correct_signals = global.railway_signalling_overseer_data.correct_signals
+        local entity_id = entity.unit_number
+        return correct_signals[entity_id] ~= nil
+    end
+
     local function table_concat(t1, t2)
         local t = {}
         for _, a in ipairs(t1) do
@@ -633,10 +661,12 @@ do
     local function get_rail_signal_type(signal)
         if signal == nil then
             return rail_signal_type.none
-        elseif signal.name == "correct-rail-signal" then
-            return rail_signal_type.normal_correct
         elseif signal.type == "rail-signal" then
-            return rail_signal_type.normal
+            if is_signal_marked_correct(signal) then
+                return rail_signal_type.normal_correct
+            else
+                return rail_signal_type.normal
+            end
         elseif signal.type == "rail-chain-signal" then
             return rail_signal_type.chain
         else
@@ -1580,7 +1610,7 @@ do
             highlight_rail(player, rail, ttl, renderings)
         end
     end
-    
+
     local function update(player, type, range, ttl)
         local data = get_config(player)
         local train_length = data.train_length
@@ -1672,24 +1702,22 @@ do
         end
     end
 
-    local function replace_with_correct_rail_signal(entity)
-        entity.surface.create_entity{
-            name = "correct-rail-signal",
-            position = entity.position,
-            direction = entity.direction,
-            force = entity.force,
-            spill = false,
-            target = entity,
-            fast_replace = true
-        }
-    end
-
     local function assume_rail_signals_correct(event)
         local rail_signals = event.entities
         for _, rail_signal in ipairs(rail_signals) do
             if rail_signal.health then
                 -- if not ghost
-                replace_with_correct_rail_signal(rail_signal)
+                mark_signal_correct(rail_signal)
+            end
+        end
+    end
+
+    local function unassume_rail_signals_correct(event)
+        local rail_signals = event.entities
+        for _, rail_signal in ipairs(rail_signals) do
+            if rail_signal.health then
+                -- if not ghost
+                unmark_signal_correct(rail_signal)
             end
         end
     end
@@ -1797,6 +1825,12 @@ do
         end
     end)
 
+    script.on_event({ defines.events.on_player_alt_selected_area }, function(e)
+        if e.item == "railway_signalling_overseer_assume_correct_tool" then
+            unassume_rail_signals_correct(e)
+        end
+    end)
+
     script.on_event({ defines.events.on_player_setup_blueprint }, function(e)
         local player = game.players[e.player_index]
         local blueprint = player.blueprint_to_setup
@@ -1807,14 +1841,14 @@ do
         local success = false
         if blueprint ~= nil and blueprint.valid and blueprint.valid_for_read and blueprint.is_blueprint then
             local blueprint_entities = blueprint.get_blueprint_entities()
-            if blueprint_entities ~= nil then
-                for _, entity in pairs(blueprint_entities) do
-                    if entity.name == "correct-rail-signal" then
-                        entity.name = "rail-signal"
-                        if entity.tags ~= nil then
-                            entity.tags["correct"] = true
+            local mapping = e.mapping.get()
+            if blueprint_entities ~= nil and mapping ~= nil then
+                for _, bentity in pairs(blueprint_entities) do
+                    if bentity.name == "rail-signal" and is_signal_marked_correct(mapping[bentity.entity_number]) then
+                        if bentity.tags ~= nil then
+                            bentity.tags["correct"] = true
                         else
-                            entity.tags = {correct = true}
+                            bentity.tags = {correct = true}
                         end
                     end
                 end
@@ -1825,7 +1859,7 @@ do
 
         if not success then
             for _, entity in pairs(e.mapping.get()) do
-                if entity.name == "correct-rail-signal" then
+                if entity.type == "rail-signal" and is_signal_marked_correct(entity) then
                     player.print("Hey, this blueprint is now fucked because of a (almost 2 years old) bug in factorio (https://forums.factorio.com/88100). There is no workaround. You have to make the blueprint from scratch if you want it to preserve everything correctly.")
                     break
                 end
@@ -1835,9 +1869,13 @@ do
 
     local function on_entity_built(entity, tags)
         if entity.valid and entity.name == "rail-signal" and tags and tags["correct"] then
-            replace_with_correct_rail_signal(entity)
+            mark_signal_correct(entity)
         end
     end
+
+    script.on_event(defines.events.on_entity_destroyed, function(e)
+        unmark_signal_correct_by_unit_number(e.unit_number)
+    end)
 
     script.on_event(defines.events.on_built_entity, function(e)
         on_entity_built(e.created_entity, e.tags)

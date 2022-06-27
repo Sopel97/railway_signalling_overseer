@@ -11,9 +11,9 @@ do
 
     local correct_rail_signal = util.table.deepcopy(data.raw["rail-signal"]["rail-signal"])
     correct_rail_signal.name = "correct-rail-signal"
-    correct_rail_signal.localised_name = "Correct rail signal"
-    correct_rail_signal.localised_description = "A rail signal that indicates to the Railway Signal Overseer mod that it should be assumed correct"
-    correct_rail_signal.placeable_by = {{item="rail-signal", count=1}}
+    correct_rail_signal.localised_name = "DEPRECATED"
+    correct_rail_signal.localised_description = "DEPRECATED"
+    correct_rail_signal.enabled = false
     data:extend({correct_rail_signal})
 
     data:extend({
@@ -37,11 +37,12 @@ do
             stack_size = 1,
             flags = { "hidden", "not-stackable", "spawnable" },
             entity_filters = { "rail-signal" },
+            alt_entity_filters = { "rail-signal" },
             selection_mode = { "blueprint" },
-            selection_color = { r = 1, g = 1 },
+            alt_selection_mode = { "blueprint" },
+            selection_color = { g = 1 },
+            alt_selection_color = { r = 1 },
             selection_cursor_box_type = "entity",
-            alt_selection_mode = { "any-entity" },
-            alt_selection_color = { r = 1, g = 1, b = 0.5 },
             alt_selection_cursor_box_type = "entity",
             draw_label_for_cursor_render = true,
         },
