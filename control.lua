@@ -519,7 +519,6 @@ do
     end
 
     local function reinitialize()
-        global.railway_signalling_overseer_data = {}
         for _, player in pairs(game.players) do
             setup_mod_globals(player)
             setup_mod_gui(player)
