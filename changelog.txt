@@ -1,4 +1,7 @@
 ---------------------------------------------------------------------------------------------------
+  Fixes:
+    - Fix crash when destroying an entity without unit_number.
+---------------------------------------------------------------------------------------------------
 Version 1.1.18
   Features:
     - Add unassume functionality (alt selection)
