@@ -1874,7 +1874,10 @@ do
     end
 
     script.on_event(defines.events.on_entity_destroyed, function(e)
-        unmark_signal_correct_by_unit_number(e.unit_number)
+        -- anything we care about has a unit_number
+        if e.unit_number then
+            unmark_signal_correct_by_unit_number(e.unit_number)
+        end
     end)
 
     script.on_event(defines.events.on_built_entity, function(e)
