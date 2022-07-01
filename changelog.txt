@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version 1.1.20
+  Fixes:
+    - Handle more cases when attempting to add tags to a blueprint.
+    - Remove reliance on e.mapping for correct signal identification in a blueprint and related crashes.
+    - Selection tool for marking correct signals will no longer select tiles.
+---------------------------------------------------------------------------------------------------
+Version 1.1.19
   Fixes:
     - Fix crash when destroying an entity without unit_number.
 ---------------------------------------------------------------------------------------------------
