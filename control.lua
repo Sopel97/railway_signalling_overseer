@@ -1838,13 +1838,28 @@ do
             blueprint = player.cursor_stack
         end
 
-        local success = false
-        if blueprint ~= nil and blueprint.valid and blueprint.valid_for_read and blueprint.is_blueprint then
+        -- We need to find out the correct signals by position, because e.mapping may not be correct here.
+        -- The position needs to be turned into string too, because otherwise there's no equality.
+        -- We don't want to just use an array and do a linear search because it would blow up in extreme cases.
+        local rail_signals = player.surface.find_entities_filtered{
+            type = "rail-signal",
+            area = e.area
+        }
+        local is_signal_correct = {}
+        local num_correct_signals = 0
+        for _, rail_signal in ipairs(rail_signals) do
+            if is_signal_marked_correct(rail_signal) then
+                is_signal_correct[tostring(rail_signal.position.x) .. tostring(rail_signal.position.y)] = true
+                num_correct_signals = num_correct_signals + 1
+            end
+        end
+
+        local success = num_correct_signals == 0
+        if num_correct_signals > 0 and blueprint ~= nil and blueprint.valid and blueprint.valid_for_read and blueprint.is_blueprint then
             local blueprint_entities = blueprint.get_blueprint_entities()
-            local mapping = e.mapping.get()
-            if blueprint_entities ~= nil and mapping ~= nil then
+            if blueprint_entities ~= nil then
                 for _, bentity in pairs(blueprint_entities) do
-                    if bentity.name == "rail-signal" and is_signal_marked_correct(mapping[bentity.entity_number]) then
+                    if bentity.name == "rail-signal" and is_signal_correct[tostring(bentity.position.x) .. tostring(bentity.position.y)] then
                         if bentity.tags ~= nil then
                             bentity.tags["correct"] = true
                         else
