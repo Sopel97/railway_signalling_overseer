@@ -305,6 +305,7 @@ do
             initial_rail_scan_range = old_data.initial_rail_scan_range or DEFAULT_RAIL_SCAN_RANGE,
             show_as_alerts = old_data.show_as_alerts or false,
             highlight_rails = old_data.highlight_rails or false,
+            previous_opened_blueprint = old_data.previous_opened_blueprint or nil,
             partial_update_data = {
                 segment_graph = nil
             }
@@ -1831,12 +1832,45 @@ do
         end
     end)
 
+    script.on_event({ defines.events.on_gui_closed }, function(e)
+        if     e.gui_type == defines.gui_type.item
+           and e.item
+           and e.item.is_blueprint
+           and e.item.is_blueprint_setup() then
+            local data = global.railway_signalling_overseer_data[e.player_index]
+            data.previous_opened_blueprint = {
+                blueprint = e.item,
+                tick = e.tick,
+            }
+        end
+    end)
+
+    local function get_blueprint_to_setup(player)
+        local data = global.railway_signalling_overseer_data[player.index]
+        local opened_blueprint = data.previous_opened_blueprint
+        if opened_blueprint ~= nil and opened_blueprint.tick == game.tick then
+            return opened_blueprint.blueprint
+        end
+
+        local blueprint_to_setup = player.blueprint_to_setup
+        if blueprint_to_setup ~= nil and blueprint_to_setup.valid_for_read then
+            return blueprint_to_setup
+        end
+
+        local cursor_stack = player.cursor_stack
+        if     cursor_stack ~= nil
+           and cursor_stack.valid_for_read
+           and cursor_stack.is_blueprint
+           and cursor_stack.is_blueprint_setup() then
+            return cursor_stack
+        end
+
+        return nil
+    end
+
     script.on_event({ defines.events.on_player_setup_blueprint }, function(e)
         local player = game.players[e.player_index]
-        local blueprint = player.blueprint_to_setup
-        if blueprint == nil or not blueprint.valid_for_read then
-            blueprint = player.cursor_stack
-        end
+        local blueprint = get_blueprint_to_setup(player)
 
         -- We need to find out the correct signals by position, because e.mapping may not be correct here.
         -- The position needs to be turned into string too, because otherwise there's no equality.
