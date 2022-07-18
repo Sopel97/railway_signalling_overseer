@@ -1,4 +1,8 @@
 ---------------------------------------------------------------------------------------------------
+Version 1.1.21
+  Features:
+    - Add optional highlighting of signals marked as correct by the user.
+---------------------------------------------------------------------------------------------------
 Version 1.1.20
   Fixes:
     - Handle more cases when attempting to add tags to a blueprint.
