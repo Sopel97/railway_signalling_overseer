@@ -840,6 +840,11 @@ do
     end
 
     local function is_segment_intersection_free(node)
+        -- TODO: Utilize a new function in 1.1.62 where we will be able to check if two rails
+        --       (LuaEntity::is_rail_in_same_rail_block_as)
+        --       belong to the same segment. This will not only make this faster but also more robust.
+        --       Currently we sometimes don't handle merges correctly and there's no good way of fixing
+        --       it without the beforementioned functionality.
         local overlapping_rails = node.backmost_rail.get_rail_segment_overlaps()
         local is_intersection_free = true
         if #overlapping_rails > 0 then
