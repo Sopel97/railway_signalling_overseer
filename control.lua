@@ -305,9 +305,11 @@ do
             initial_rail_scan_range = old_data.initial_rail_scan_range or DEFAULT_RAIL_SCAN_RANGE,
             show_as_alerts = old_data.show_as_alerts or false,
             highlight_rails = old_data.highlight_rails or false,
+            show_assumptions = old_data.show_assumptions or false,
             previous_opened_blueprint = old_data.previous_opened_blueprint or nil,
             partial_update_data = {
-                segment_graph = nil
+                segment_graph = nil,
+                signals = nil
             }
         }
     end
@@ -425,6 +427,13 @@ do
                 caption = "Highlight rails",
                 name = "railway_signalling_overseer_highlight_rails_checkbox",
                 state = data.highlight_rails
+            }
+
+            flow.add{
+                type = "checkbox",
+                caption = "Show assumptions",
+                name = "railway_signalling_overseer_show_assumptions_checkbox",
+                state = data.show_assumptions
             }
 
             flow.add{
@@ -1617,6 +1626,46 @@ do
         end
     end
 
+    local function highlight_signal(player, signal, ttl, renderings)
+        if not signal.valid then
+            return
+        end
+
+        local offset = { 0, 0 }
+        if signal.direction == defines.direction.east then
+            offset = { 0, 0.32 }
+        elseif signal.direction == defines.direction.southeast then
+            offset = { -0.05, 0.2 }
+        elseif signal.direction == defines.direction.northeast then
+            offset = { 0.2, 0.2 }
+        end
+
+        local rendering_id = rendering.draw_circle{
+            color = {0.0, 0.4, 0, 0.4},
+            radius = 0.75,
+            filled = true,
+            target = signal,
+            players = {player},
+            surface = signal.surface,
+            target_offset = offset,
+            draw_on_ground = true,
+            time_to_live = ttl
+        }
+
+        if ttl == nil then
+            table.insert(renderings, rendering_id)
+        end
+    end
+
+    local function highlight_signals_assumed_correct(player, signals, ttl, renderings)
+        local data = get_config(player)
+        for _, signal in ipairs(signals) do
+            if is_signal_marked_correct(signal) then
+                highlight_signal(player, signal, ttl, renderings)
+            end
+        end
+    end
+
     local function update(player, type, range, ttl)
         local data = get_config(player)
         local train_length = data.train_length
@@ -1636,11 +1685,14 @@ do
                 segment_graph = create_railway_segment_graph_dynamic(signals, get_area_around_the_player(player, 9999999))
             end
             data.partial_update_data.segment_graph = segment_graph
+            data.partial_update_data.signals = signals
         end
 
         if type == partial_update_type.label_graph_and_render or type == partial_update_type.all then
             local highlighted_segments_ids = {}
             local segment_graph = data.partial_update_data.segment_graph
+            local signals = data.partial_update_data.signals
+
             if segment_graph ~= nil then
                 clear_renderings(player)
 
@@ -1704,6 +1756,11 @@ do
                 end
 
                 data.partial_update_data.segment_graph = nil
+            end
+
+            if signals ~= nil and data.show_assumptions then
+                highlight_signals_assumed_correct(player, signals, ttl, data.renderings)
+                data.partial_update_data.signals = nil
             end
         end
     end
@@ -1789,6 +1846,10 @@ do
             local player = game.players[event.player_index]
             local data = global.railway_signalling_overseer_data[player.index]
             data.highlight_rails = event.element.state
+        elseif name == "railway_signalling_overseer_show_assumptions_checkbox" then
+            local player = game.players[event.player_index]
+            local data = global.railway_signalling_overseer_data[player.index]
+            data.show_assumptions = event.element.state
         elseif name == "railway_signalling_overseer_enable_suggestions_checkbox" then
             local player = game.players[event.player_index]
             local data = global.railway_signalling_overseer_data[player.index]
