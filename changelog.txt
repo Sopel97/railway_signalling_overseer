@@ -1,3 +1,6 @@
+Version 1.1.23
+  Fixes/Improvements:
+    - Fix and improve chain signal suggestion logic once again.
 ---------------------------------------------------------------------------------------------------
 Version 1.1.22
   Improvements:
