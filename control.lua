@@ -889,16 +889,9 @@ do
 
     local function is_segment_intersection_free(node)
         if global.has_1_1_62_advanced_rail_queries then
-            local base_rail = node.backmost_rail
-            local overlapping_rails = base_rail.get_rail_segment_overlaps()
-            if #overlapping_rails > 0 then
-                for _, overlapping_rail in ipairs(overlapping_rails) do
-                    if not base_rail.is_rail_in_same_rail_block_as(overlapping_rail) then
-                        return false
-                    end
-                end
-            end
-            return true
+            -- Fallback to a slower, inaccurate implementation if the 1.1.62 functionality is not available.
+            local rail = node.backmost_rail
+            return #(rail.get_outbound_signals()) < 2 or #(rail.get_inbound_signals()) < 2
         else
             -- Fallback to a slower, inaccurate implementation if the 1.1.62 functionality is not available.
             local overlapping_rails = node.backmost_rail.get_rail_segment_overlaps()
