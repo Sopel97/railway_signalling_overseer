@@ -1,4 +1,8 @@
 ---------------------------------------------------------------------------------------------------
+Version 1.1.22
+  Improvements:
+    - Improve performance and accuracy of chain signal suggestions with new features from 1.1.62.
+---------------------------------------------------------------------------------------------------
 Version 1.1.21
   Features:
     - Add optional highlighting of signals marked as correct by the user.

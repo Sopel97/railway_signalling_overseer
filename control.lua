@@ -532,7 +532,46 @@ do
         end
     end
 
+    local function is_base_version_at_least(major, minor, patch)
+        if major == nil then
+            major = 0
+        end
+
+        if minor == nil then
+            minor = 0
+        end
+
+        if patch == nil then
+            patch = 0
+        end
+
+        local ver_str = game.active_mods["base"]
+        local parts = {}
+        for str in string.gmatch(ver_str, "([^\\.]+)") do
+            table.insert(parts, str)
+        end
+
+        if tonumber(parts[1]) < major then
+            return false
+        end
+
+        if tonumber(parts[2]) < minor then
+            return false
+        end
+
+        if tonumber(parts[3]) < patch then
+            return false
+        end
+
+        return true
+    end
+
+    local function setup_feature_availability()
+        global.has_1_1_62_advanced_rail_queries = is_base_version_at_least(1, 1, 62)
+    end
+
     local function reinitialize()
+        setup_feature_availability()
         for _, player in pairs(game.players) do
             setup_mod_globals(player)
             setup_mod_gui(player)
@@ -849,41 +888,50 @@ do
     end
 
     local function is_segment_intersection_free(node)
-        -- TODO: Utilize a new function in 1.1.62 where we will be able to check if two rails
-        --       (LuaEntity::is_rail_in_same_rail_block_as)
-        --       belong to the same segment. This will not only make this faster but also more robust.
-        --       Currently we sometimes don't handle merges correctly and there's no good way of fixing
-        --       it without the beforementioned functionality.
-        local overlapping_rails = node.backmost_rail.get_rail_segment_overlaps()
-        local is_intersection_free = true
-        if #overlapping_rails > 0 then
-            local neighbours = {}
-            for _, neighbour in ipairs(get_neighbour_rails(node.backmost_rail, node.backmost_dir)) do
-                neighbours[make_entity_id(neighbour)] = true
-            end
-            for _, neighbour in ipairs(get_neighbour_rails(node.frontmost_rail, node.frontmost_dir)) do
-                neighbours[make_entity_id(neighbour)] = true
-            end
-            for _, overlapping_rail in ipairs(overlapping_rails) do
-                local is_directly_adjacent = false
-                for _, enddir in ipairs(ALL_RAIL_DIRECTIONS) do
-                    local rail, dir = overlapping_rail.get_rail_segment_end(enddir)
-                    for _, condir in ipairs(ALL_RAIL_CONNECTION_DIRECTIONS) do
-                        local other_neighbour = rail.get_connected_rail{rail_direction=dir, rail_connection_direction=condir}
-                        if other_neighbour ~= nil and neighbours[make_entity_id(other_neighbour)] then
-                            is_directly_adjacent = true
-                            goto next_rail_label
-                        end
+        if global.has_1_1_62_advanced_rail_queries then
+            local base_rail = node.backmost_rail
+            local overlapping_rails = base_rail.get_rail_segment_overlaps()
+            if #overlapping_rails > 0 then
+                for _, overlapping_rail in ipairs(overlapping_rails) do
+                    if not base_rail.is_rail_in_same_rail_block_as(overlapping_rail) then
+                        return false
                     end
                 end
-                if not is_directly_adjacent then
-                    is_intersection_free = false
-                    break
-                end
-                ::next_rail_label::
             end
+            return true
+        else
+            -- Fallback to a slower, inaccurate implementation if the 1.1.62 functionality is not available.
+            local overlapping_rails = node.backmost_rail.get_rail_segment_overlaps()
+            local is_intersection_free = true
+            if #overlapping_rails > 0 then
+                local neighbours = {}
+                for _, neighbour in ipairs(get_neighbour_rails(node.backmost_rail, node.backmost_dir)) do
+                    neighbours[make_entity_id(neighbour)] = true
+                end
+                for _, neighbour in ipairs(get_neighbour_rails(node.frontmost_rail, node.frontmost_dir)) do
+                    neighbours[make_entity_id(neighbour)] = true
+                end
+                for _, overlapping_rail in ipairs(overlapping_rails) do
+                    local is_directly_adjacent = false
+                    for _, enddir in ipairs(ALL_RAIL_DIRECTIONS) do
+                        local rail, dir = overlapping_rail.get_rail_segment_end(enddir)
+                        for _, condir in ipairs(ALL_RAIL_CONNECTION_DIRECTIONS) do
+                            local other_neighbour = rail.get_connected_rail{rail_direction=dir, rail_connection_direction=condir}
+                            if other_neighbour ~= nil and neighbours[make_entity_id(other_neighbour)] then
+                                is_directly_adjacent = true
+                                goto next_rail_label
+                            end
+                        end
+                    end
+                    if not is_directly_adjacent then
+                        is_intersection_free = false
+                        break
+                    end
+                    ::next_rail_label::
+                end
+            end
+            return is_intersection_free
         end
-        return is_intersection_free
     end
 
     local function table_insert_if_unique(tbl, v)
