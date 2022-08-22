@@ -1221,12 +1221,6 @@ do
 
         local spaces = {}
 
-        -- Only compute this with newer API features
-        local self_block = nil
-        if global.has_1_1_62_advanced_rail_queries then
-            self_block = false
-        end
-
         while true do
             local new_head = {}
             for _, h in ipairs(head) do
@@ -1250,9 +1244,6 @@ do
                                 new_blocks = deepcopy(h.blocks)
                             end
                             if is_next_block then
-                                if global.has_1_1_62_advanced_rail_queries then
-                                    self_block = self_block or graph[next_id].frontmost_rail.is_rail_in_same_rail_block_as(graph[start_segment_id].frontmost_rail)
-                                end
                                 table.insert(new_blocks, {next_id})
                             else
                                 table.insert(new_blocks[#new_blocks], next_id)
@@ -1309,7 +1300,7 @@ do
             table.insert(result_spaces, final_block)
         end
 
-        return result_spaces, self_block
+        return result_spaces
     end
 
     -- NOTE: This function only considers connected rails. It does NOT handle rail intersections.
@@ -1434,8 +1425,10 @@ do
 
         for id, node in pairs(graph) do
             if node.end_signal == rail_signal_type.chain then
+                -- This one needs to be expanded fully
+                local block = expand_segment_to_block(graph, id)
                 -- These blocks will only be expanded forward
-                local safe_spaces_after_chain, self_block = find_safe_spaces_after_chain_signals(graph, id)
+                local safe_spaces_after_chain = find_safe_spaces_after_chain_signals(graph, id)
                 local assume_correct = true
 
                 node.min_block_length_after_chain_signals = nil
@@ -1446,9 +1439,7 @@ do
 
                 for _, safe_space in ipairs(safe_spaces_after_chain) do
                     -- We can just check for containment here, it's enough.
-                    -- The find_safe_spaces_after_chain_signals does self-wait check with the new features
-                    -- Otherwise an inaccurate and expensive check.
-                    if not safe_space.assume_correct and (self_block or (self_block == nil and block_a_contains_any_from_b(expand_segment_to_block(graph, id), safe_space))) then
+                    if not safe_space.assume_correct and block_a_contains_any_from_b(block, safe_space) then
                         -- before chain is the same block as after chain,
                         -- so the train will never go through there...
                         -- in this case we don't produce any other information
