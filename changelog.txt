@@ -1,3 +1,7 @@
+Version 1.1.26
+  Fixes:
+    - Restrict selection tool in a proper way. Fix issues with alien biomes.
+---------------------------------------------------------------------------------------------------
 Version 1.1.25
   Fixes:
     - Revert 1.1.24 as it was producing false positives for roundabouts...
