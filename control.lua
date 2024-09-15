@@ -1701,7 +1701,7 @@ do
     local function highlight_signals_assumed_correct(player, signals, ttl, renderings)
         local data = get_config(player)
         for _, signal in ipairs(signals) do
-            if is_signal_marked_correct(signal) then
+            if signal.valid and is_signal_marked_correct(signal) then
                 highlight_signal(player, signal, ttl, renderings)
             end
         end

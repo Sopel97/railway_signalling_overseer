@@ -1,3 +1,8 @@
+
+Version 1.1.28
+  Fixes:
+    - Fix highlight_signals_assumed_correct attempting to highlight invalid signals, leading to a crash.
+---------------------------------------------------------------------------------------------------
 Version 1.1.27
   Fixes:
     - Fix data-final-fixes.lua was erroneusly still present.
